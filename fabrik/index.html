@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><style>[hidden]{display:none!important}</style></head><body>
+<title>Schoko-Typ-Fabrik</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
+<style>
+/* Layout: one full-bleed factory stage (2688×1520 scene units, scaled to cover, swipeable when narrower),
+   a thin HUD floating above it, and a question sheet that opens from the clicked crate.
+   Single committed look: the scene is a warm, sunlit illustration in both OS themes. */
+:root{
+  --choc:#4a2617; --choc-2:#6e3c22; --choc-3:#8a5233;
+  --teal:#2d6e69; --teal-d:#18413f; --copper:#c8703c; --sun:#e8b649;
+  --paper:#fff8ee; --cream:#f6ead7; --line:#e6d5bd;
+  --ink:#2a1911; --muted:#7b6151; --dunno:#c9b8a6;
+  --display:'Fredoka','Baloo 2','Trebuchet MS',system-ui,sans-serif;
+  --body:'Nunito','Segoe UI',system-ui,-apple-system,sans-serif;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{background:#20140e;color:var(--ink);font-family:var(--body);overflow:hidden}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--sun);outline-offset:3px}
+
+/* ---------- stage ---------- */
+#view{position:fixed;inset:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;cursor:grab}
+#view::-webkit-scrollbar{display:none}
+#view.drag{cursor:grabbing}
+#sizer{position:relative}
+#stage{position:absolute;left:0;top:0;width:2688px;height:1520px;transform-origin:0 0;overflow:hidden;background:#d8c3a8}
+#stage>img.bg{position:absolute;inset:0;width:2688px;height:1520px;max-width:none;user-select:none;-webkit-user-drag:none}
+.layer{position:absolute;inset:0;pointer-events:none}
+#win{position:absolute;left:687px;top:167px;width:1217px;height:682px;overflow:hidden;background:#9cc8e8}
+#win img,#win video{position:absolute;inset:0;width:100%;height:100%;max-width:none;object-fit:cover}
+#win video{opacity:0;transition:opacity .8s}
+#win video.live{opacity:1}
+#steam{position:absolute;left:1840px;top:-20px;width:760px;height:620px;pointer-events:none;z-index:2}
+#belt{z-index:3}
+.bucket{position:absolute;left:0;top:0;will-change:transform}
+.bucket img{position:absolute;max-width:none;user-select:none;-webkit-user-drag:none}
+.bucket .rot{position:absolute;left:0;top:0;will-change:transform}
+.bucket .be{opacity:0;transition:opacity .18s}
+.bucket.empty .bf{opacity:0;transition:opacity .18s}
+.bucket.empty .be{opacity:1}
+.bean{position:absolute;left:0;top:0;width:26px;max-width:none;will-change:transform;pointer-events:none}
+.bub{position:absolute;width:22px;height:12px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#b77a52,#5c2f1a 70%);
+  box-shadow:inset 0 1px 1px rgba(255,220,190,.6);transform:scale(0);animation:bub 2.6s ease-in infinite}
+@keyframes bub{0%{transform:scale(0)}60%{transform:scale(1)}72%{transform:scale(1.25);opacity:1}76%{transform:scale(1.5);opacity:0}100%{opacity:0}}
+.splash{position:absolute;width:44px;height:14px;margin:-7px 0 0 -22px;border-radius:50%;border:3px solid #7a4126;opacity:.9;animation:splash .55s ease-out forwards}
+@keyframes splash{to{transform:scale(2.4);opacity:0}}
+
+/* ---------- crates ---------- */
+.box{position:absolute;left:0;top:0;padding:0;border:0;background:none;cursor:pointer;pointer-events:auto;will-change:transform}
+.box .art{position:absolute;inset:0;transition:transform .25s cubic-bezier(.3,1.6,.5,1),filter .25s}
+.box img{width:100%;height:100%;max-width:none;display:block;filter:drop-shadow(0 14px 10px rgba(60,30,10,.35))}
+.box:hover .art,.box:focus-visible .art{transform:translateY(-16px);filter:drop-shadow(0 0 22px rgba(255,214,120,.95))}
+.plaque{position:absolute;left:50%;transform:translate(-50%,-50%);width:66%;padding:12px 10px 14px;border-radius:22px;
+  background:var(--pc);color:var(--pf);text-align:center;box-shadow:inset 0 -5px 0 rgba(0,0,0,.14),0 3px 0 rgba(0,0,0,.12);
+  clip-path:polygon(7% 0,93% 0,100% 14%,100% 86%,93% 100%,7% 100%,0 86%,0 14%)}
+.plaque b{display:block;font-family:var(--display);font-weight:700;font-size:56px;line-height:1;letter-spacing:1px}
+.plaque span{display:block;font-family:var(--display);font-weight:600;font-size:24px;line-height:1.1;margin-top:4px}
+.box .tip{position:absolute;left:50%;bottom:100%;transform:translate(-50%,-6px) scale(.9);opacity:0;white-space:nowrap;
+  background:var(--choc);color:var(--paper);font-family:var(--display);font-weight:600;font-size:27px;padding:10px 20px;border-radius:999px;
+  transition:.2s;pointer-events:none;box-shadow:0 8px 20px rgba(40,20,10,.35)}
+.box .tip::after{content:"";position:absolute;left:50%;top:100%;margin-left:-10px;border:10px solid transparent;border-top-color:var(--choc)}
+.box:hover .tip,.box:focus-visible .tip{opacity:1;transform:translate(-50%,-34px) scale(1)}
+.box .done{position:absolute;right:-8px;top:-10px;width:58px;height:58px;border-radius:50%;background:var(--teal);color:#fff;
+  font:700 34px/58px var(--display);text-align:center;box-shadow:0 4px 0 var(--teal-d);display:none}
+.box.opened .done{display:block}
+.box.pop .art{animation:pop .5s cubic-bezier(.3,1.5,.5,1)}
+@keyframes pop{0%{transform:scale(1)}30%{transform:scale(1.12,.86)}60%{transform:translateY(-40px) scale(.95,1.08)}100%{transform:scale(1)}}
+
+/* ---------- HUD ---------- */
+.hud{position:fixed;left:0;right:0;pointer-events:none;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));z-index:5}
+.hud>*{pointer-events:auto}
+.hud.top{top:0;padding-top:calc(14px + env(safe-area-inset-top,0px))}
+.hud.bottom{bottom:0;justify-content:center;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+.brand{background:rgba(255,248,238,.92);backdrop-filter:blur(6px);border-radius:18px;padding:10px 16px 12px;box-shadow:0 6px 18px rgba(40,20,10,.25);max-width:320px}
+.brand small{display:block;font-size:.68rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--copper)}
+.brand h1{margin:2px 0 0;font:600 1.35rem/1.1 var(--display);color:var(--choc);text-wrap:balance}
+.brand p{margin:3px 0 0;font-size:.8rem;color:var(--muted)}
+.count{background:var(--choc);color:var(--paper);border-radius:999px;padding:8px 14px 8px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 18px rgba(40,20,10,.3);font-weight:700;font-size:.85rem}
+.count .dots{display:grid;grid-template-columns:repeat(13,8px);gap:3px}
+.count .dots i{width:8px;height:8px;border-radius:50%;background:rgba(255,248,238,.25)}
+.count .dots i.on{background:var(--sun)}
+.count b{font:600 1.05rem var(--display);font-variant-numeric:tabular-nums}
+.belt{background:rgba(255,248,238,.94);backdrop-filter:blur(6px);border-radius:22px;padding:10px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(40,20,10,.3)}
+.belt .lbl{font:600 .95rem var(--display);color:var(--choc);white-space:nowrap}
+.belt button{width:40px;height:40px;border-radius:50%;border:0;background:var(--teal);color:#fff;font-size:1rem;cursor:pointer;box-shadow:0 3px 0 var(--teal-d);display:grid;place-items:center}
+.belt button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--teal-d)}
+.belt button.stop{background:var(--copper);box-shadow:0 3px 0 #8d4a24}
+.belt input{width:min(260px,40vw);accent-color:var(--copper)}
+.hint{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:5;background:var(--sun);color:var(--choc);
+  font:600 .95rem var(--display);padding:8px 16px;border-radius:999px;box-shadow:0 6px 16px rgba(40,20,10,.3);animation:nudge 1.6s ease-in-out infinite;pointer-events:none;white-space:nowrap}
+@keyframes nudge{50%{transform:translate(-50%,-6px)}}
+
+/* ---------- loader & intro ---------- */
+#loader{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#5a301c,#24130c 70%);color:var(--paper);transition:opacity .6s}
+#loader.gone{opacity:0;pointer-events:none}
+.ld{display:grid;justify-items:center;gap:18px;padding-inline:max(16px,env(safe-area-inset-left,0px))}
+.bar{display:grid;grid-template-columns:repeat(4,46px);gap:6px;padding:8px;border-radius:12px;background:#2a160d;box-shadow:inset 0 0 0 3px #6b3a22}
+.bar i{height:34px;border-radius:6px;background:#3a1f12;box-shadow:inset 0 -4px 0 rgba(0,0,0,.25);transition:background .3s}
+.bar i.on{background:linear-gradient(160deg,#a8653d,#6e3c22);box-shadow:inset 0 -4px 0 rgba(0,0,0,.25),inset 0 2px 0 rgba(255,210,170,.35)}
+.ld p{margin:0;font:600 1.05rem var(--display);letter-spacing:.02em}
+.ld small{font-variant-numeric:tabular-nums;opacity:.7}
+#intro{position:fixed;inset:0;z-index:15;display:grid;place-items:center;background:rgba(36,19,12,.45);padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));transition:opacity .45s}
+#intro.gone{opacity:0;pointer-events:none}
+.intro-card{background:var(--paper);border-radius:28px;max-width:520px;padding:28px 28px 26px;box-shadow:0 24px 60px rgba(30,15,8,.45);text-align:left}
+.intro-card small{font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--copper)}
+.intro-card h2{margin:6px 0 10px;font:700 2.2rem/1.05 var(--display);color:var(--choc);text-wrap:balance}
+.intro-card p{margin:0 0 10px;line-height:1.55;color:#4b3326}
+.intro-card ul{margin:4px 0 18px;padding:0;list-style:none;display:grid;gap:6px;color:#4b3326;font-size:.95rem}
+.intro-card li::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--copper);margin-right:10px;transform:translateY(-1px)}
+.cta{border:0;border-radius:999px;padding:13px 26px;background:var(--teal);color:#fff;font:600 1.1rem var(--display);cursor:pointer;box-shadow:0 4px 0 var(--teal-d)}
+.cta:active{transform:translateY(2px);box-shadow:0 2px 0 var(--teal-d)}
+
+/* ---------- question sheet ---------- */
+#sheet{position:fixed;inset:0;z-index:12;display:grid;place-items:center;background:rgba(30,16,10,.55);backdrop-filter:blur(3px);
+  padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  opacity:0;pointer-events:none;transition:opacity .3s}
+#sheet.on{opacity:1;pointer-events:auto}
+.card{position:relative;width:min(1040px,100%);max-height:100%;overflow:auto;background:var(--paper);border-radius:30px;box-shadow:0 30px 80px rgba(20,10,5,.5);
+  display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:28px;padding:30px 32px 26px;transform:scale(.25);opacity:0;transition:transform .45s cubic-bezier(.2,1.25,.4,1),opacity .25s}
+#sheet.on .card{transform:none;opacity:1}
+.close{position:absolute;right:16px;top:16px;width:42px;height:42px;border-radius:50%;border:0;background:var(--cream);color:var(--choc);font-size:1.3rem;cursor:pointer}
+.kick{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:.75rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--pc);color:var(--pf);letter-spacing:.06em}
+.card h2{margin:10px 48px 6px 0;font:700 2.1rem/1.05 var(--display);color:var(--choc);text-wrap:balance}
+.card .q{margin:0 0 20px;font-size:1.05rem;line-height:1.5;color:#4b3326;max-width:62ch}
+.rows{display:grid;gap:12px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 56px;gap:4px 12px;align-items:center}
+.row .t{font-weight:700;font-size:.95rem;line-height:1.3;grid-column:1/-1}
+.row .t em{display:block;font-style:normal;font-weight:400;font-size:.82rem;color:var(--muted);margin-top:1px}
+.row .track{height:16px;border-radius:999px;background:var(--cream);overflow:hidden}
+.row .fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--choc-2),var(--choc-3));transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.row.top .fill{background:linear-gradient(90deg,#b45f30,var(--copper))}
+.row.dk .fill{background:var(--dunno)}
+.row.dk .t{color:var(--muted);font-weight:600}
+.row .p{font:600 1.15rem var(--display);text-align:right;font-variant-numeric:tabular-nums;color:var(--choc)}
+.row.top .p{color:var(--copper)}
+.insight{margin:18px 0 0;padding:12px 16px;border-radius:16px;background:var(--cream);font-weight:700;color:var(--choc);line-height:1.4}
+.insight b{font-family:var(--display);font-weight:600;color:var(--copper);font-size:1.15rem}
+.src{margin:14px 0 0;font-size:.76rem;color:var(--muted)}
+.reel{align-self:start;display:grid;gap:10px}
+.phone{aspect-ratio:9/16;max-width:100%;border-radius:24px;background:linear-gradient(170deg,#3a6d6a,#1b3b3a 55%,#3a2014);position:relative;overflow:hidden;box-shadow:inset 0 0 0 6px #241510}
+.phone video{width:100%;height:100%;object-fit:cover;display:block}
+.phone .ph{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:12px;color:var(--paper);text-align:center;padding:18px}
+.phone .play{width:64px;height:64px;border-radius:50%;background:rgba(255,248,238,.18);display:grid;place-items:center;box-shadow:0 0 0 2px rgba(255,248,238,.5)}
+.phone .play::after{content:"";border-left:20px solid var(--paper);border-top:12px solid transparent;border-bottom:12px solid transparent;margin-left:5px}
+.phone strong{font:600 1.05rem/1.2 var(--display)}
+.phone span{font-size:.78rem;opacity:.75;line-height:1.4}
+.phone .ticker{position:absolute;left:0;right:0;bottom:0;background:var(--copper);color:#fff;font:600 .72rem var(--display);padding:6px 10px;letter-spacing:.04em;white-space:nowrap;overflow:hidden}
+.reel p{margin:0;font-size:.78rem;color:var(--muted);text-align:center}
+.nav{grid-column:1/-1;display:flex;justify-content:space-between;gap:12px;border-top:2px dashed var(--line);padding-top:16px}
+.nav button{border:0;background:var(--cream);color:var(--choc);border-radius:999px;padding:10px 18px;font:600 .95rem var(--display);cursor:pointer}
+.nav button:hover{background:var(--line)}
+
+@media (max-width:760px){
+  .brand{padding:8px 12px 9px;max-width:56vw}
+  .brand h1{font-size:1.05rem}
+  .brand p,.brand small{display:none}
+  .count{padding:7px 12px;gap:8px;white-space:nowrap}
+  .count>span:first-child{display:none}
+  .kick{padding-right:48px}
+  .reel{grid-template-columns:96px 1fr}
+  .phone .ph strong{font-size:.8rem}
+  .phone .ph span,.phone .ticker{display:none}
+  .phone .play{width:40px;height:40px}
+  .count .dots{display:none}
+  .belt{gap:8px;padding:8px 10px}
+  .belt .lbl{display:none}
+  .belt input{width:34vw}
+  .card{grid-template-columns:1fr;padding:22px 18px 18px;gap:18px;border-radius:24px}
+  .card h2{font-size:1.65rem}
+  .reel{align-items:center}
+  .reel p{text-align:left}
+  .intro-card h2{font-size:1.8rem}
+}
+@media (prefers-reduced-motion:reduce){.bub,.hint{animation:none}}
+</style>
+
+<div id="view"><div id="sizer"><div id="stage">
+  <div id="win"><img src="assets/window-poster.webp" alt="" draggable="false"><video id="winv" muted loop playsinline autoplay preload="auto" poster="assets/window-poster.webp" aria-hidden="true"></video></div>
+  <img class="bg" src="assets/bg.webp" alt="Illustrierte Schokoladenfabrik: Kranschiene mit Kakao-Kübeln, ein Fenster mit einem Vulkan, aus dem Schokolade fließt, ein dampfender Kupferkessel und ein Laufband mit Kisten." draggable="false">
+  <div class="layer" id="steamL"></div>
+  <canvas id="steam" width="760" height="620" aria-hidden="true"></canvas>
+  <div class="layer" id="rail"></div>
+  <div class="layer" id="beans"></div>
+  <div class="layer" id="belt" style="pointer-events:none"></div>
+</div></div></div>
+
+<div class="hud top">
+  <div class="brand"><small>Infozentrum Schokolade · YouGov</small><h1>Schoko-Typ-Umfrage 2025</h1><p>13 Kisten · 2.062 Befragte · 24.–26.11.2025</p></div>
+  <div class="count" aria-live="polite"><span>Geöffnet</span><b id="cnt">0 / 13</b><span class="dots" id="dots"></span></div>
+</div>
+<div class="hint" id="hint" hidden>Klick auf eine Kiste und öffne die Frage</div>
+<div class="hud bottom">
+  <div class="belt" role="group" aria-label="Laufband steuern">
+    <span class="lbl">Laufband</span>
+    <button type="button" id="bl" aria-label="Laufband nach links">◀</button>
+    <input type="range" id="speed" min="-100" max="100" value="30" aria-label="Richtung und Tempo des Laufbands">
+    <button type="button" id="br" aria-label="Laufband nach rechts">▶</button>
+    <button type="button" id="bs" class="stop" aria-label="Laufband anhalten">■</button>
+  </div>
+</div>
+
+<div id="loader" role="status"><div class="ld">
+  <div class="bar" id="lbar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <p>Die Fabrik heizt die Kessel an …</p><small id="lpct">0 %</small>
+</div></div>
+
+<div id="intro" hidden><div class="intro-card" role="dialog" aria-labelledby="introT">
+  <small>Schoko-Typ-Umfrage des Infozentrums Schokolade</small>
+  <h2 id="introT">Was ist dein Schoko-Typ?</h2>
+  <p>Wir haben 2.062 Menschen gefragt, wie sie sich Schokolade in fantastischen Situationen vorstellen. Die Antworten liegen verpackt auf dem Laufband.</p>
+  <ul><li>Steuere das Laufband nach links oder rechts.</li><li>Öffne eine Kiste und sieh, wie Deutschland geantwortet hat.</li><li>Schaffst du alle 13 Kisten?</li></ul>
+  <button class="cta" id="enter" type="button">Fabrik betreten</button>
+</div></div>
+
+<div id="sheet" aria-hidden="true"><div class="card" role="dialog" aria-modal="true" aria-labelledby="qT" id="card">
+  <button class="close" id="close" type="button" aria-label="Schließen">✕</button>
+  <div>
+    <div class="kick"><span class="chip" id="qChip"></span><span id="qCat"></span></div>
+    <h2 id="qT"></h2>
+    <p class="q" id="qQ"></p>
+    <div class="rows" id="qRows"></div>
+    <p class="insight" id="qIns"></p>
+    <p class="src">Repräsentative Online-Umfrage von YouGov im Auftrag des Infozentrums Schokolade, n = 2.062, 24.–26.11.2025. Rundungsbedingt ergeben die Werte nicht immer 100 %.</p>
+  </div>
+  <div class="reel">
+    <div class="phone" id="qReel"></div>
+    <p>Fantastische News: das Reel zur Frage</p>
+  </div>
+  <div class="nav"><button type="button" id="prev">◀ Vorige Kiste</button><button type="button" id="next">Nächste Kiste ▶</button></div>
+</div></div>
+
+<script>
+(()=>{
+const W=2688,H=1520;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* geometry of the split bucket sprite, scene units */
+const G={full:{w:218.05,h:402.05},top:{x:1.47,y:0,w:215.11,h:215.6},bodyFull:{x:0,y:171.5,w:218.05,h:230.55},
+  bodyEmpty:{x:1.46,y:197.81,w:215.59,h:202.09},pivot:{x:109.03,y:222.95}};
+const RAIL_Y=16, SP=560, NB=6, KX=2178, KETTLE={x0:2015,x1:2415,y:548};
+const BOX_BASE=1162, BOX_SP=420;
+
+/* ---------- survey data (Schokoladenumfrage 2025) ---------- */
+const DK='Weiß nicht / keine Angabe';
+const Q=[
+ {cat:'Qualifizierungsfrage 1',t:'Dein Schoko-Bekenntnis',q:'Welche der folgenden Aussagen über Schokolade trifft am ehesten auf Sie zu?',
+  a:[['Ohne Schokolade fehlt mir etwas',35],['Ich könnte problemlos verzichten',14],['Ich liebe sie, aber nur in Maßen',42],['Ich bin neutral',8],[DK,0]]},
+ {cat:'Qualifizierungsfrage 2',t:'Dein Schoko-Rhythmus',q:'Welche Beschreibung passt am ehesten zu Ihrem Schokoladenkonsum?',
+  a:[['Unregelmäßig',35],['Spontan und impulsiv',30],['Geplant und bewusst',17],['Emotional, aber gesteuert',13],['Ich esse gar keine Schokolade',3],[DK,1]]},
+ {cat:'Qualifizierungsfrage 3',t:'Deine Lieblingsform',q:'Welche Form von Schokolade mögen Sie am liebsten?',
+  a:[['Tafel',53],['Riegel',21],['Pralinen',16],['Brotaufstrich',4],['Schokodrink',3],['Andere',1],[DK,2]]},
+ {cat:'Weitergehende Frage 1',t:'Deine Schoko-Kompetenz',q:'Wenn Sie eine Auszeichnung für „Schokoladenkompetenz“ erhalten würden – wofür am ehesten?',
+  a:[['Für den feinsten Gaumen',28],['Für unübertroffene Begeisterung',20],['Für übermenschliche Selbstkontrolle',16],['Für die besten Vorratsverstecke',12],['Für kreative Resteverwertung',12],[DK,12]]},
+ {cat:'Weitergehende Frage 2',t:'Deine exotische Schoko-Kombi',q:'Welche dieser ungewöhnlichen Kombinationen würden Sie gerne probieren?',
+  a:[['Schokolade mit Lakritze',17],['Schokolade mit Algen',8],['Schokolade mit Blauschimmelkäse',7],['Schokolade mit Sushi',3],['Etwas anderes',4],['Keine, ich bevorzuge Schokolade eher „klassisch“',65],[DK,2]]},
+ {cat:'Weitergehende Frage 3',t:'Dein Schoko-Tier',q:'Wenn Schokolade ein Tier wäre, dann am ehesten …',
+  a:[['… eine Katze','genussvolles Essen und Schnurren',38],['… ein Pandabär','schwarz-weiß, süß und entspannt',23],['… ein Chamäleon','optisch anpassungsfähig und für alle Situationen die richtige Antwort parat',14],['… ein Elefant','kraftvoll und stark wie dunkle Schokolade',13],[DK,12]]},
+ {cat:'Weitergehende Frage 4',t:'Dein Schoko-Urlaub',q:'Wenn Schokolade ein Urlaubsort wäre, dann am ehesten …',
+  a:[['… eine Berghütte mit Kaminfeuer',44],['… ein tropisches Inselparadies',22],['… ein kleines Hotel mit Blick auf den Eiffelturm in Paris',14],['… ein Wochenendtrip ins Unbekannte, ein Abenteuer',9],[DK,11]]},
+ {cat:'Schoko-Nerd-Frage 1',t:'Deine Schoko-Natur',q:'Wenn Schokolade einen Aspekt des Wetters oder der Natur ersetzen könnte, was wäre Ihnen am liebsten?',
+  a:[['Schokolava','die aus einem Vulkan austritt und langsam vom Berg herabläuft',29],['Kakaowolken','die Schokoschnee oder Schokoregen erzeugen',22],['Schokoladentau am Morgen','der sich auf den Blättern und Gräsern absetzt und langsam abperlt',17],['Wind aus Schokoflocken','der beim Vorbeiziehen leise knistert',16],[DK,17]]},
+ {cat:'Schoko-Nerd-Frage 2',t:'Dein Schoko-Ritual',q:'Wenn es im Büro ein offizielles „Schoko-Ritual“ gäbe, welches wäre Ihnen am liebsten?',
+  a:[['Der Kaffeepausen-Pralinenspender','Ein Pralinenspender direkt neben der Kaffeemaschine in der Betriebsküche',45],['Die Küchendienst-Schoki','Wer die Spülmaschine freiwillig ausräumt, bekommt einen Schokoriegel seiner Wahl',22],['Das Neustart-Nougat','Wer bei einem technischen Problem NICHT zum Neustart aufgefordert wird, darf sich eine Nougat-Praline holen',12],['Die Buzzword-Buße','Wer zu viele Buzzwords benutzt, zahlt in die Kakao-Kasse und gibt eine heiße Schokolade aus',5],[DK,15]]},
+ {cat:'Schoko-Nerd-Frage 3',t:'Dein Schoko-Blockbuster',q:'Welches Filmgenre trifft Ihre persönliche Beziehung zu Schokolade am besten?',
+  a:[['Romanze','Du schenkst der Schokolade ein Lächeln, sie schenkt dir dafür Liebe auf den ersten Biss',49],['Fantasy','Die Schokolade wird von einem Drachen bewacht und du musst den süßen Schatz aus seiner Höhle klauen',14],['Action-Thriller','Kannst du die Schokolade schnell genug aus der Verpackung befreien, bevor sie schmilzt?',14],['Drama','Liebt dich die Schokolade so sehr wie du sie?',10],[DK,13]]},
+ {cat:'Schoko-Nerd-Frage 4',t:'Deine Schoko-TV-Serie',q:'Wie würde eine TV-Show mit Ihnen und Schokolade heißen?',
+  a:[['„Die Schokoladenjäger – auf Beutezug im Supermarkt“','Ein Warentester im Einsatz',33],['„Einmal Liebe, Zartbitter bitte!“','Eine Romanze voller Leidenschaft, Schokolade und Intrigen',28],['„Die Kakao-Kommune“','Mockumentary über eine Schokoladenmanufaktur, in der ein Kollege verrückter ist als der andere',14],['„Chocosaurus Maximus“','Familien-Comedyserie mit einem Satansbraten und seinen Schoko-Streichen',9],[DK,15]]},
+ {cat:'Schoko-Nerd-Frage 5',t:'Deine Schoko-Olympiade',q:'Wenn es eine Schokoladen-Olympiade gäbe, was wäre Ihre Disziplin?',
+  a:[['Schokokugel-Gewichtheben','Hier kannst du beweisen, wie viele Kilogramm Schokolade du wirklich pressen kannst',33],['Schokowellen-Surfen','Durch die Zähflüssigkeit der Schokolade eine besondere Herausforderung',26],['Schoko-Ninja-Parcours','Die Schoko-Tafel auf dem Kopf balancieren, während du springst, hangelst und rennst',18],[DK,23]]},
+ {cat:'Schoko-Nerd-Frage 6',t:'Dein Schoko-Influencer-Video',q:'Wenn Sie ein Schokoladen-Influencer wären, was wäre Ihr erstes Video?',
+  a:[['„Der ultimative Produkttester“','Ich probiere JEDE Schokoladensorte in meinem Supermarkt',34],['„Versteckstrategien“','Wie ich meine Schokolade vor Mitbewohnern (oder Partnern) schütze',17],['„Der Schokoladen-Detektiv“','Wer hat das letzte Stück gegessen?',16],['„Schoko-Selfie“','100 Versuche bis zum perfekten Bild von mir und meiner Lieblingsschoki',16],[DK,17]]},
+];
+/* crate labels: chocolate varieties, plaque colours echo the illustration */
+const LAB=[['Weiße Schokolade','#f1e2b8','#5b3a22'],['Pralinen','#c4473b','#fff4e6'],['Zartbitter','#5a2f1d','#fbe9d5'],['Vollmilch','#3f6db0','#fff4e6'],
+  ['Nougat','#d4762f','#fff4e6'],['Haselnuss','#6b8b39','#fff4e6'],['Karamell','#c99036','#3b220f'],['Marzipan','#e2a3a0','#4a2017'],
+  ['Mandel','#b88a5c','#fff4e6'],['Kokos','#efe7d8','#4a3324'],['Erdbeere','#cf4f69','#fff4e6'],['Minze','#4ea78f','#fff4e6'],['Trüffel','#3a2217','#f4dcc0']];
+
+/* ---------- DOM ---------- */
+const $=s=>document.querySelector(s);
+const view=$('#view'),sizer=$('#sizer'),stage=$('#stage');
+const pad=n=>String(n).padStart(2,'0');
+let opened=new Set();
+try{(JSON.parse(localStorage.getItem('schoko-opened')||'[]')).forEach(i=>opened.add(i))}catch(e){}
+
+/* fit stage: cover the viewport, swipe sideways when the screen is narrower than the scene */
+let S=1,firstFit=true;
+function fit(){
+  const vw=innerWidth,vh=innerHeight;S=Math.max(vw/W,vh/H);
+  stage.style.transform=`scale(${S})`;sizer.style.width=W*S+'px';sizer.style.height=H*S+'px';
+  sizer.style.marginTop=Math.min(0,(vh-H*S)/2)+'px';
+  if(firstFit){view.scrollLeft=Math.max(0,(W*S-vw)*0.62);firstFit=false}
+}
+addEventListener('resize',fit);fit();
+/* mouse drag to pan (touch scrolls natively) */
+let drag=null;
+view.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.target.closest('.box'))return;drag={x:e.clientX,l:view.scrollLeft};view.classList.add('drag')});
+addEventListener('pointermove',e=>{if(drag)view.scrollLeft=drag.l-(e.clientX-drag.x)});
+addEventListener('pointerup',()=>{drag=null;view.classList.remove('drag')});
+
+/* ---------- volcano video behind the window panes ---------- */
+const winv=$('#winv');
+if(!reduce){winv.addEventListener('playing',()=>winv.classList.add('live'));winv.src='assets/volcano.mp4';winv.play().catch(()=>{})}
+
+/* ---------- steam: soft puffs that rise, swirl and spread ---------- */
+const sc=$('#steam'),sx=sc.getContext('2d');const SOX=1840,SOY=-20;
+const puff=document.createElement('canvas');puff.width=puff.height=128;{const p=puff.getContext('2d');const g=p.createRadialGradient(64,64,0,64,64,64);
+  g.addColorStop(0,'rgba(255,255,255,.9)');g.addColorStop(.45,'rgba(255,252,246,.45)');g.addColorStop(1,'rgba(255,250,240,0)');p.fillStyle=g;p.fillRect(0,0,128,128)}
+const puffs=[];let steamAcc=0,steamBoost=0;
+function steamStep(dt,T){
+  steamAcc+=dt*(9+steamBoost*14);steamBoost=Math.max(0,steamBoost-dt*.6);
+  while(steamAcc>1){steamAcc--;const a=Math.random()*Math.PI*2,r=Math.sqrt(Math.random());
+    puffs.push({x:2215+Math.cos(a)*r*150-SOX,y:540+Math.sin(a)*r*10-SOY,r:16+Math.random()*16,g:38+Math.random()*30,vy:-(42+Math.random()*38),
+      ph:Math.random()*6.28,f:.6+Math.random()*.9,amp:18+Math.random()*26,life:0,max:3.6+Math.random()*2.4,a:.22+Math.random()*.18,spin:(Math.random()-.5)*.8})}
+  sx.clearRect(0,0,sc.width,sc.height);
+  for(let i=puffs.length-1;i>=0;i--){const p=puffs[i];p.life+=dt;const k=p.life/p.max;if(k>=1){puffs.splice(i,1);continue}
+    p.y+=p.vy*dt;p.vy*=1-dt*.12;
+    const curl=Math.sin(T*p.f+p.ph+p.y*.012)*p.amp+Math.sin(T*.37+p.ph)*10;  /* swirl + slow wind gust */
+    p.x+=(curl*.9+8)*dt;p.r+=p.g*dt;
+    const al=p.a*Math.min(1,k*5)*(1-k)*(1-k);sx.globalAlpha=al;
+    sx.drawImage(puff,p.x-p.r,p.y-p.r,p.r*2,p.r*2)}
+  sx.globalAlpha=1}
+
+/* ---------- kettle bubbles ---------- */
+const steamL=$('#steamL');
+for(let i=0;i<9;i++){const b=document.createElement('div');b.className='bub';const a=Math.random()*Math.PI*2,r=Math.sqrt(Math.random());
+  b.style.left=(2215+Math.cos(a)*r*150-11)+'px';b.style.top=(543+Math.sin(a)*r*11-6)+'px';b.style.animationDelay=(-Math.random()*2.6)+'s';b.style.animationDuration=(2+Math.random()*1.6)+'s';steamL.appendChild(b)}
+
+/* ---------- buckets on the crane rail ---------- */
+const rail=$('#rail');const buckets=[];
+function img(src,r,cls){const i=new Image();i.src=src;i.alt='';i.className=cls||'';Object.assign(i.style,{left:r.x+'px',top:r.y+'px',width:r.w+'px',height:r.h+'px'});return i}
+for(let k=0;k<NB;k++){
+  const el=document.createElement('div');el.className='bucket';el.style.width=G.full.w+'px';el.style.height=G.full.h+'px';
+  const rot=document.createElement('div');rot.className='rot';rot.style.width=G.full.w+'px';rot.style.height=G.full.h+'px';rot.style.transformOrigin=`${G.pivot.x}px ${G.pivot.y}px`;
+  rot.append(img('assets/bucket-body-full.webp',G.bodyFull,'bf'),img('assets/bucket-body-empty.webp',G.bodyEmpty,'be'));
+  el.append(rot,img('assets/bucket-top.webp',G.top));rail.appendChild(el);
+  buckets.push({el,rot,base:KX+SP*(1-k),empty:k===0});if(k===0)el.classList.add('empty');
+}
+function placeBuckets(off){for(const b of buckets){b.el.style.transform=`translate3d(${b.base+off-G.pivot.x}px,${RAIL_Y}px,0)`}}
+placeBuckets(0);
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+const PH=[['tip',.85],['pour',1.25],['untip',.75],['move',2.6]];
+let ph=0,pt=0,current=buckets[1];
+function bucketStep(dt){
+  pt+=dt;const [name,dur]=PH[ph];const t=Math.min(1,pt/dur);
+  if(name==='tip'){const a=ease(t)*112;current.rot.style.transform=`rotate(${a}deg)`;if(t>.28&&!current.empty){current.empty=true;current.el.classList.add('empty')}if(t>.3)spawnBeans(dt,a)}
+  else if(name==='pour'){spawnBeans(dt*(1-t*.7),112)}
+  else if(name==='untip'){current.rot.style.transform=`rotate(${(1-ease(t))*112}deg)`}
+  else if(name==='move'){placeBuckets(ease(t)*SP)}
+  if(t>=1){
+    if(name==='move'){for(const b of buckets){b.base+=SP;if(b.base>W+300){b.base-=SP*NB;b.empty=false;b.el.classList.remove('empty')}}placeBuckets(0);
+      current=buckets.reduce((a,b)=>Math.abs(b.base-KX)<Math.abs(a.base-KX)?b:a)}
+    ph=(ph+1)%PH.length;pt=0}
+}
+
+/* ---------- falling cacao beans ---------- */
+const beanL=$('#beans');const beans=[];let acc=0;
+const BEAN_SRC=[...Array(9)].map((_,i)=>`assets/bean${i}.webp`);
+function bean(x,y,vx,vy,life,spin,size){const e=new Image();e.src=BEAN_SRC[Math.random()*9|0];e.className='bean';e.alt='';e.style.width=size+'px';beanL.appendChild(e);
+  beans.push({e,x,y,vx,vy,r:Math.random()*360,vr:spin,life,size})}
+function spawnBeans(dt,angle){acc+=dt*34;const a=angle*Math.PI/180;const nx=Math.sin(a),ny=-Math.cos(a);
+  const px=current.base,py=RAIL_Y+G.pivot.y;
+  while(acc>1){acc--;const s=(Math.random()-.5)*60;bean(px+nx*18+Math.cos(a)*s,py+ny*18+Math.sin(a)*s,nx*90+(Math.random()-.5)*50,ny*90+20,0,(Math.random()-.5)*500,22+Math.random()*8)}}
+function splash(x,y){const s=document.createElement('div');s.className='splash';s.style.left=x+'px';s.style.top=y+'px';beanL.appendChild(s);setTimeout(()=>s.remove(),600)}
+function beanStep(dt){for(let i=beans.length-1;i>=0;i--){const b=beans[i];b.vy+=2300*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;b.r+=b.vr*dt;b.life+=dt;
+  let kill=false;
+  if(b.box){ if(b.life>1.4||b.y>1500)kill=true }
+  else if(b.y>KETTLE.y-4&&b.x>KETTLE.x0&&b.x<KETTLE.x1){kill=true;steamBoost=Math.min(1.6,steamBoost+.06);if(Math.random()<.35)splash(b.x,KETTLE.y+Math.random()*8)}
+  else if(b.y>1500)kill=true;
+  if(kill){b.e.remove();beans.splice(i,1);continue}
+  b.e.style.transform=`translate3d(${b.x-b.size/2}px,${b.y-b.size/2}px,0) rotate(${b.r}deg)`;
+  if(b.box)b.e.style.opacity=Math.max(0,1-b.life/1.4)}}
+
+/* ---------- crates on the conveyor ---------- */
+const beltL=$('#belt');const boxes=[];
+Q.forEach((q,i)=>{
+  const wood=i%2===1;const w=wood?282:320,h=wood?273:256;const [ln,pc,pf]=LAB[i];
+  const b=document.createElement('button');b.type='button';b.className='box';b.style.width=w+'px';b.style.height=h+'px';
+  b.setAttribute('aria-label',`Kiste ${pad(i+1)} öffnen: ${q.t}`);
+  b.innerHTML=`<span class="tip">${pad(i+1)} · ${q.t}</span><span class="art"><img src="assets/${wood?'box-wood':'box-card'}.webp" alt="" draggable="false">
+   <span class="plaque" style="--pc:${pc};--pf:${pf};top:${wood?54:58}%"><b>${pad(i+1)}</b><span>${ln}</span></span><span class="done" aria-hidden="true">✓</span></span>`;
+  b.addEventListener('pointerenter',()=>hover=i);b.addEventListener('pointerleave',()=>{if(hover===i)hover=-1});
+  b.addEventListener('focus',()=>hover=i);b.addEventListener('blur',()=>{if(hover===i)hover=-1});
+  b.addEventListener('click',()=>openBox(i));
+  if(opened.has(i))b.classList.add('opened');
+  beltL.appendChild(b);boxes.push({b,w,h});
+});
+const LOOP=Q.length*BOX_SP;let off=-60,vel=0,hover=-1;
+const speed=$('#speed');if(reduce)speed.value=0;
+$('#bl').onclick=()=>speed.value=Math.max(-100,Math.min(-35,+speed.value-25));
+$('#br').onclick=()=>speed.value=Math.min(100,Math.max(35,+speed.value+25));
+$('#bs').onclick=()=>speed.value=0;
+function beltStep(dt){
+  const target=(hover>=0||sheetOpen)?0:(+speed.value)*2.3;vel+=(target-vel)*Math.min(1,dt*(hover>=0?9:3));off+=vel*dt;
+  boxes.forEach((o,i)=>{let x=((i*BOX_SP+off)%LOOP+LOOP)%LOOP-430;o.x=x;o.b.style.transform=`translate3d(${x+ (BOX_SP-o.w)/2}px,${BOX_BASE-o.h}px,0)`});
+}
+
+/* ---------- progress ---------- */
+const dots=$('#dots');Q.forEach(()=>dots.appendChild(document.createElement('i')));
+function progress(){$('#cnt').textContent=`${opened.size} / 13`;[...dots.children].forEach((d,i)=>d.classList.toggle('on',opened.has(i)))}
+progress();
+
+/* ---------- question sheet ---------- */
+const sheet=$('#sheet'),card=$('#card');let sheetOpen=false,curQ=0,lastFocus=null;
+function render(i){
+  const q=Q[i];const [ln,pc,pf]=LAB[i];curQ=i;
+  const chip=$('#qChip');chip.textContent=`Kiste ${pad(i+1)} · ${ln}`;chip.style.setProperty('--pc',pc);chip.style.setProperty('--pf',pf);
+  $('#qCat').textContent=q.cat;$('#qT').textContent=q.t;$('#qQ').textContent=q.q;
+  const rows=q.a.map(r=>r.length===3?{l:r[0],d:r[1],p:r[2]}:{l:r[0],d:'',p:r[1]});
+  const max=Math.max(...rows.filter(r=>r.l!==DK).map(r=>r.p));const scale=Math.max(...rows.map(r=>r.p));
+  const top=rows.find(r=>r.p===max&&r.l!==DK);
+  $('#qRows').innerHTML=rows.map(r=>`<div class="row${r===top?' top':''}${r.l===DK?' dk':''}"><div class="t">${r.l}${r.d?`<em>${r.d}</em>`:''}</div>
+    <div class="track"><div class="fill" data-w="${scale?r.p/scale*100:0}"></div></div><div class="p" data-p="${r.p}">0 %</div></div>`).join('');
+  $('#qIns').innerHTML=`<b>${top.p} %</b> entscheiden sich für: ${top.l.replace(/^… /,'')}${top.d?' – '+top.d:''}.`;
+  const reel=$('#qReel');
+  reel.innerHTML=q.reel?`<video src="${q.reel}" controls playsinline preload="metadata"></video>`:
+    `<div class="ph"><div class="play" aria-hidden="true"></div><strong>${q.t}</strong><span>Nina Nougat und Paul Praline berichten live aus der Fabrik.<br>Reel folgt.</span></div><div class="ticker">FANTASTISCHE NEWS +++ ${q.t.toUpperCase()} +++</div>`;
+  $('#prev').textContent=`◀ Kiste ${pad((i+12)%13+1)}`;$('#next').textContent=`Kiste ${pad((i+1)%13+1)} ▶`;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    card.querySelectorAll('.fill').forEach(f=>f.style.width=f.dataset.w+'%');
+    card.querySelectorAll('.p').forEach(p=>{const to=+p.dataset.p;if(reduce){p.textContent=to+' %';return}const t0=performance.now();
+      (function tick(now){const k=Math.min(1,(now-t0)/900);p.textContent=Math.round(to*(1-Math.pow(1-k,3)))+' %';if(k<1)requestAnimationFrame(tick)})(t0)})}));
+  if(!opened.has(i)){opened.add(i);boxes[i].b.classList.add('opened');try{localStorage.setItem('schoko-opened',JSON.stringify([...opened]))}catch(e){}progress()}
+}
+function openBox(i){
+  if(sheetOpen)return;const o=boxes[i];lastFocus=o.b;$('#hint').hidden=true;
+  o.b.classList.remove('pop');void o.b.offsetWidth;o.b.classList.add('pop');
+  const bx=o.x+BOX_SP/2,by=BOX_BASE-o.h;
+  if(!reduce)for(let k=0;k<14;k++){const bb=bean(bx+(Math.random()-.5)*o.w*.6,by+20,(Math.random()-.5)*700,-900-Math.random()*500,0,(Math.random()-.5)*900,26+Math.random()*10);beans[beans.length-1].box=true}
+  const r=o.b.getBoundingClientRect();
+  setTimeout(()=>{card.style.transformOrigin=`${r.left+r.width/2-(innerWidth-Math.min(1040,innerWidth-32))/2}px ${r.top}px`;
+    render(i);sheetOpen=true;sheet.classList.add('on');sheet.setAttribute('aria-hidden','false');$('#close').focus()},reduce?0:320);
+}
+function closeSheet(){if(!sheetOpen)return;sheetOpen=false;sheet.classList.remove('on');sheet.setAttribute('aria-hidden','true');
+  card.querySelectorAll('.fill').forEach(f=>f.style.width=0);if(lastFocus)lastFocus.focus({preventScroll:true})}
+$('#close').onclick=closeSheet;sheet.addEventListener('click',e=>{if(e.target===sheet)closeSheet()});
+$('#prev').onclick=()=>{card.querySelectorAll('.fill').forEach(f=>f.style.width=0);render((curQ+12)%13);lastFocus=boxes[curQ].b};
+$('#next').onclick=()=>{card.querySelectorAll('.fill').forEach(f=>f.style.width=0);render((curQ+1)%13);lastFocus=boxes[curQ].b};
+addEventListener('keydown',e=>{if(!sheetOpen)return;if(e.key==='Escape')closeSheet();if(e.key==='ArrowRight')$('#next').click();if(e.key==='ArrowLeft')$('#prev').click()});
+
+/* ---------- main loop ---------- */
+let last=performance.now(),T=0;
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;
+  beltStep(dt);
+  if(!reduce){bucketStep(dt);steamStep(dt,T)}
+  beanStep(dt);requestAnimationFrame(frame)}
+if(reduce){steamAcc=40;steamStep(1.2,0)}
+
+/* ---------- preloader ---------- */
+const SRC=['assets/bg.webp','assets/window-poster.webp','assets/bucket-top.webp','assets/bucket-body-full.webp','assets/bucket-body-empty.webp','assets/box-card.webp','assets/box-wood.webp',...BEAN_SRC];
+let done=0;const segs=[...document.querySelectorAll('#lbar i')];const t0=performance.now();
+function tickLoad(){done++;const p=done/SRC.length;$('#lpct').textContent=Math.round(p*100)+' %';segs.forEach((s,i)=>s.classList.toggle('on',i<Math.round(p*8)))}
+Promise.all(SRC.map(s=>new Promise(r=>{const i=new Image();i.onload=i.onerror=()=>{tickLoad();r()};i.src=s}))).then(()=>{
+  const wait=Math.max(0,1100-(performance.now()-t0));
+  setTimeout(()=>{$('#loader').classList.add('gone');requestAnimationFrame(frame);
+    if(opened.size===0){$('#intro').hidden=false;$('#enter').focus()}else $('#hint').hidden=false},wait)});
+$('#enter').onclick=()=>{$('#intro').classList.add('gone');setTimeout(()=>$('#intro').hidden=true,450);$('#hint').hidden=false;setTimeout(()=>$('#hint').hidden=true,9000)};
+})();
+</script>
+
+</body></html>

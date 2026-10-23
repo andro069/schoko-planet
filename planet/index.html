@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><style>[hidden]{display:none!important}</style></head><body>
+<title>Schoko-Planet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
+<style>
+/* Layout: a full-screen WebGL universe with one draggable chocolate Earth in the middle;
+   thin HUD on top, a place bar at the bottom, and a question sheet that opens after the globe turns to a figure.
+   Single committed look: dark chocolate space, gold accents. */
+:root{
+  --space:#120906; --choc:#4a2617; --choc-2:#6e3c22; --choc-3:#8a5233; --gold:#d9a441; --gold-2:#f1cf7a;
+  --paper:#fff8ee; --cream:#f4e8d4; --line:#e3d1b6; --ink:#2a1911; --muted:#7a6151; --dunno:#cbbba8; --coral:#d9673f; --teal:#2d6e69;
+  --display:'Fredoka','Trebuchet MS',system-ui,sans-serif; --body:'Nunito','Segoe UI',system-ui,-apple-system,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+[hidden]{display:none!important}
+html,body{overflow:hidden;overscroll-behavior:none}
+body{background:var(--space);color:var(--paper);font-family:var(--body);overflow:hidden}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--gold-2);outline-offset:3px}
+#sky{position:fixed;inset:0;width:100%;height:100%;display:block}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#gl.grab{cursor:grabbing}#gl.hot{cursor:pointer}
+#tags{position:fixed;inset:0;pointer-events:none;z-index:2}
+.tag{position:absolute;left:0;top:0;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:0;padding:0;pointer-events:auto;cursor:pointer;
+  background:radial-gradient(circle at 35% 30%,#ffe7a6,var(--gold) 60%,#a8741f);color:#3a1d0c;font:700 13px/30px var(--display);text-align:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.5),0 0 14px rgba(241,207,122,.35);transition:opacity .25s,transform .2s;will-change:transform}
+.tag.done{background:radial-gradient(circle at 35% 30%,#7fd1c9,var(--teal) 65%,#1b4a46);color:#fff}
+.tag .lab{position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);white-space:nowrap;background:rgba(30,15,8,.92);color:var(--paper);
+  font:600 .82rem/1 var(--display);padding:7px 12px;border-radius:999px;opacity:0;transition:.2s;pointer-events:none;border:1px solid rgba(241,207,122,.35)}
+.tag.hover .lab,.tag:focus-visible .lab{opacity:1}
+
+.hud{position:fixed;left:0;right:0;pointer-events:none;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;z-index:5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.hud>*{pointer-events:auto}
+.hud.top{top:0;padding-top:calc(16px + env(safe-area-inset-top,0px))}
+.brand small{display:block;font-size:.7rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-2)}
+.brand h1{margin:3px 0 0;font:600 1.6rem/1.05 var(--display);color:var(--paper);text-wrap:balance}
+.brand p{margin:4px 0 0;font-size:.85rem;color:#c9b29c}
+.figsw{background:rgba(30,15,8,.75);border:1px solid rgba(241,207,122,.3);backdrop-filter:blur(6px);border-radius:999px;padding:4px;display:flex;gap:2px;font:600 .78rem var(--display)}
+.figsw button{white-space:nowrap;border:0;background:none;color:#e9d7c2;border-radius:999px;padding:6px 12px;font:inherit;cursor:pointer}
+.figsw button[aria-pressed="true"]{background:var(--gold-2,#e6b85c);color:#2a140a}
+.hudr{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.count{background:rgba(30,15,8,.75);border:1px solid rgba(241,207,122,.3);backdrop-filter:blur(6px);border-radius:999px;padding:8px 16px;display:flex;align-items:center;gap:10px;font-weight:700;font-size:.85rem;white-space:nowrap}
+.count b{font:600 1.05rem var(--display);font-variant-numeric:tabular-nums;color:var(--gold-2)}
+.meter{width:90px;height:7px;border-radius:999px;background:rgba(255,248,238,.15);overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#b07a26,var(--gold-2));transition:width .6s}
+.hint{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:4;color:#e6d3bd;font:600 .9rem var(--display);
+  display:flex;align-items:center;gap:8px;pointer-events:none;transition:opacity .6s;white-space:nowrap}
+.hint i{font-style:normal;display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;border:1px solid rgba(241,207,122,.5);animation:sway 2.4s ease-in-out infinite}
+@keyframes sway{50%{transform:translateX(8px)}}
+.hint.gone{opacity:0}
+.places{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;justify-content:center;pointer-events:none;
+  padding:0 max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.places nav{pointer-events:auto;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;max-width:100%;padding:7px;border-radius:20px;background:rgba(30,15,8,.78);border:1px solid rgba(241,207,122,.22);backdrop-filter:blur(8px)}
+.places nav::-webkit-scrollbar{display:none}
+.places button{flex:none;border:0;border-radius:999px;padding:7px 12px 7px 7px;background:rgba(255,248,238,.07);color:var(--paper);font:600 .85rem var(--display);cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap}
+.places button i{font-style:normal;width:24px;height:24px;border-radius:50%;background:var(--gold);color:#3a1d0c;display:grid;place-items:center;font-size:.75rem;font-variant-numeric:tabular-nums}
+.places button:hover,.places button.on{background:rgba(241,207,122,.2)}
+.places button.done i{background:var(--teal);color:#fff}
+
+#loader{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,#3a1d10,#0d0604 70%);transition:opacity .7s}
+#loader.gone{opacity:0;pointer-events:none}
+.ld{display:grid;justify-items:center;gap:16px}
+.orb{width:84px;height:84px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#a8703f,#4a2617 60%,#1d0d06);box-shadow:0 0 40px rgba(217,164,65,.35);animation:spin 2.4s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ld p{margin:0;font:600 1.05rem var(--display);color:var(--paper)}
+#intro{position:fixed;inset:0;z-index:15;display:grid;place-items:center;background:rgba(10,5,3,.45);padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));transition:opacity .45s}
+#intro.gone{opacity:0;pointer-events:none}
+.intro-card{background:var(--paper);color:var(--ink);border-radius:28px;max-width:520px;padding:28px 28px 26px;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+.intro-card small{font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--coral)}
+.intro-card h2{margin:6px 0 10px;font:700 2.2rem/1.05 var(--display);color:var(--choc);text-wrap:balance}
+.intro-card p{margin:0 0 10px;line-height:1.55;color:#4b3326}
+.intro-card ul{margin:4px 0 18px;padding:0;list-style:none;display:grid;gap:6px;color:#4b3326;font-size:.95rem}
+.intro-card li::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--gold);margin-right:10px;transform:translateY(-1px)}
+.cta{border:0;border-radius:999px;padding:13px 26px;background:var(--choc);color:var(--paper);font:600 1.1rem var(--display);cursor:pointer;box-shadow:0 4px 0 #2a140a}
+.cta:active{transform:translateY(2px);box-shadow:0 2px 0 #2a140a}
+
+#sheet{position:fixed;inset:0;z-index:12;display:grid;place-items:center end;background:linear-gradient(90deg,rgba(10,5,3,0) 30%,rgba(10,5,3,.55));
+  padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  opacity:0;pointer-events:none;transition:opacity .35s}
+#sheet.on{opacity:1;pointer-events:auto}
+.card{box-sizing:border-box;position:relative;width:min(620px,100%);max-height:100%;overflow:auto;background:var(--paper);color:var(--ink);border-radius:28px;box-shadow:0 30px 80px rgba(0,0,0,.6);
+  display:grid;gap:20px;padding:28px 28px 22px;transform:translateX(40px);opacity:0;transition:transform .45s cubic-bezier(.2,1.1,.35,1),opacity .3s}
+#sheet.on .card{transform:none;opacity:1}
+.close{position:absolute;right:16px;top:16px;width:40px;height:40px;border-radius:50%;border:0;background:var(--cream);color:var(--choc);font-size:1.2rem;cursor:pointer}
+.kick{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:.74rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding-right:48px}
+.chip{display:inline-flex;padding:4px 10px;border-radius:999px;background:var(--choc);color:var(--gold-2);letter-spacing:.06em}
+.card h2{margin:8px 48px 4px 0;font:700 2rem/1.05 var(--display);color:var(--choc);text-wrap:balance}
+.card .q{margin:0 0 16px;font-size:1rem;line-height:1.5;color:#4b3326}
+.rows{display:grid;gap:11px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 56px;gap:4px 12px;align-items:center}
+.row .t{font-weight:700;font-size:.93rem;line-height:1.3;grid-column:1/-1}
+.row .t em{display:block;font-style:normal;font-weight:400;font-size:.8rem;color:var(--muted);margin-top:1px}
+.row .track{height:14px;border-radius:999px;background:var(--cream);overflow:hidden}
+.row .fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--choc-2),var(--choc-3));transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.row.top .fill{background:linear-gradient(90deg,#b07a26,var(--gold))}
+.row.dk .fill{background:var(--dunno)}
+.row.dk .t{color:var(--muted);font-weight:600}
+.row .p{font:600 1.1rem var(--display);text-align:right;font-variant-numeric:tabular-nums;color:var(--choc);white-space:nowrap}
+.row.top .p{color:#a8741f}
+.insight{margin:16px 0 0;padding:12px 16px;border-radius:16px;background:var(--cream);font-weight:700;color:var(--choc);line-height:1.4}
+.insight b{font-family:var(--display);font-weight:600;color:#a8741f;font-size:1.1rem}
+.reelrow{display:flex;align-items:center;gap:12px;background:#2a1710;color:var(--paper);border-radius:18px;padding:10px 12px}
+.reelrow .mini{flex:none;width:44px;height:78px;border-radius:9px;background:linear-gradient(170deg,#6e3c22,#2a140a);display:grid;place-items:center;box-shadow:inset 0 0 0 2px rgba(241,207,122,.4)}
+.reelrow .mini::after{content:"";border-left:13px solid var(--gold-2);border-top:8px solid transparent;border-bottom:8px solid transparent;margin-left:3px}
+.reelrow strong{display:block;font:600 .95rem var(--display)}
+.reelrow span{font-size:.8rem;color:#cdb8a3}
+.src{margin:0;font-size:.74rem;color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:12px;border-top:2px dashed var(--line);padding-top:14px}
+.nav button{border:0;background:var(--cream);color:var(--choc);border-radius:999px;padding:9px 16px;font:600 .9rem var(--display);cursor:pointer}
+.nav button:hover{background:var(--line)}
+
+
+/* ---------- opener (cinematic intro) ---------- */
+#opener{position:fixed;inset:0;z-index:12;display:grid;place-items:center;pointer-events:none;text-align:center;padding:0 16px}
+#opener[hidden]{display:none}
+.op-in{display:grid;justify-items:center;gap:14px;transform:translateY(-4vh)}
+.op-kick{font:800 .8rem var(--body);letter-spacing:.42em;text-transform:uppercase;color:var(--gold-2);opacity:0}
+.op-title{margin:0;font:700 clamp(2.4rem,9vw,7.2rem)/.95 var(--display);letter-spacing:-.01em;text-wrap:balance}
+.op-title .w{display:inline-block;white-space:nowrap}
+.op-title .c{display:inline-block;opacity:0;transform:translateY(.55em) scale(.6) rotate(-8deg);filter:blur(10px);
+  background:linear-gradient(100deg,#c98a3a 0%,#ffe7a6 30%,#fff6dc 42%,#e6b45a 55%,#a8641f 100%);background-size:300% 100%;background-position:100% 0;
+  -webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none}
+.op-sub{font:600 clamp(.95rem,2.2vw,1.25rem) var(--display);color:#e9d7c2;opacity:0}
+.op-sub b{color:var(--gold-2)}
+.op-line{width:0;height:2px;background:linear-gradient(90deg,transparent,var(--gold-2),transparent)}
+#flare{position:fixed;left:50%;top:50%;width:60vmin;height:60vmin;margin:-30vmin 0 0 -30vmin;border-radius:50%;z-index:11;pointer-events:none;opacity:0;
+  background:radial-gradient(circle,rgba(255,231,166,.55),rgba(217,164,65,.22) 35%,transparent 65%);mix-blend-mode:screen}
+#skip{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:13;border:1px solid rgba(241,207,122,.4);
+  background:rgba(30,15,8,.6);color:#e9d7c2;border-radius:999px;padding:9px 16px;font:600 .85rem var(--display);cursor:pointer;backdrop-filter:blur(6px);opacity:0;transition:opacity .4s}
+#skip[hidden]{display:none}
+body.op .hud,body.op .places,body.op #tags,body.op .hint{opacity:0!important;pointer-events:none!important}
+.hud,.places,#tags{transition:opacity .9s ease,transform .9s cubic-bezier(.2,.8,.2,1)}
+body.op .hud.top{transform:translateY(-30px)}body.op .places{transform:translateY(40px)}
+body.op.run #skip{opacity:1}
+body.op.run .op-kick{animation:opFade .8s .25s ease forwards}
+body.op.run .op-title .c{animation:opChar .9s cubic-bezier(.2,1.4,.3,1) forwards,opShine 1.6s 1.5s ease-in-out forwards;animation-delay:calc(.45s + var(--i)*40ms),1.5s}
+body.op.run .op-line{animation:opLine 1s 1.1s cubic-bezier(.2,.8,.2,1) forwards}
+body.op.run .op-sub{animation:opFade .8s 1.35s ease forwards}
+body.op.flare #flare{animation:opFlare 1.5s ease-out forwards}
+body.op.out .op-in{animation:opOut .7s cubic-bezier(.5,0,.8,.4) forwards}
+.op-in::before{content:"";position:absolute;inset:-18vh -12vw;z-index:-1;background:radial-gradient(closest-side,rgba(13,6,4,.75),transparent);pointer-events:none}
+.op-in{position:relative}
+body.op.out #skip{opacity:0}
+@keyframes opFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes opChar{to{opacity:1;transform:none;filter:blur(0)}}
+@keyframes opShine{to{background-position:0 0}}
+@keyframes opLine{to{width:min(420px,60vw)}}
+@keyframes opFlare{0%{opacity:0;transform:scale(.3)}25%{opacity:1}100%{opacity:0;transform:scale(2.6)}}
+@keyframes opOut{to{opacity:0;transform:translateY(-10vh) scale(1.12);filter:blur(6px)}}
+
+@media (max-width:760px){
+  .brand small,.brand p,.meter{display:none}
+  .brand h1{font-size:1.2rem}
+  .op-title{font-size:13vw}.op-kick{letter-spacing:.24em;font-size:.68rem}
+  .figsw .lg{display:none}.figsw button{padding:5px 10px}
+  .count{padding:7px 12px}.count>span{display:none}
+  .hint{bottom:calc(84px + env(safe-area-inset-bottom,0px));font-size:.82rem}
+  #sheet{place-items:end stretch;padding:0;background:linear-gradient(180deg,rgba(10,5,3,0) 25%,rgba(10,5,3,.5))}
+  .card{width:100%;max-height:70vh;border-radius:26px 26px 0 0;transform:translateY(100%);opacity:1;padding:18px 18px calc(16px + env(safe-area-inset-bottom,0px));gap:14px}
+  .card h2{font-size:1.6rem}
+  .intro-card h2{font-size:1.8rem}
+}
+@media (prefers-reduced-motion:reduce){.hint i,.orb{animation:none}}
+</style>
+
+<canvas id="sky" aria-hidden="true"></canvas>
+<canvas id="gl" aria-label="Drehbarer Schokoladen-Planet mit 13 Schoko-Figuren. Ziehen dreht den Planeten, ein Klick auf eine Figur öffnet die Frage."></canvas>
+<div id="tags"></div>
+
+<div class="hud top">
+  <div class="brand"><small>Schoko-Typ-Umfrage 2025</small><h1>Der Schoko-Planet</h1><p>13 Figuren · 2.062 Befragte · 24.–26.11.2025</p></div>
+  <div class="hudr"><div class="count" aria-live="polite"><span>Entdeckt</span><b id="cnt">0 / 13</b><span class="meter"><i id="meter"></i></span></div>
+  <div class="figsw" role="group" aria-label="Figuren-Stil"><button id="swR" aria-pressed="true">Render<span class="lg">-Figuren</span></button><button id="swM" aria-pressed="false">3D<span class="lg">-Modelle</span></button></div></div>
+</div>
+<div class="hint gone" id="hint"><i>⟷</i>Zieh am Planeten und klick auf eine Figur</div>
+<div class="places"><nav id="placeNav" aria-label="Alle Figuren"></nav></div>
+
+<div id="flare" aria-hidden="true"></div>
+<div id="opener" hidden aria-hidden="true"><div class="op-in">
+  <div class="op-kick">Infozentrum Schokolade präsentiert</div>
+  <h2 class="op-title" id="opT">Der Schoko-Planet</h2>
+  <div class="op-line"></div>
+  <div class="op-sub">Die Schoko-Typ-Umfrage 2025 · <b>2.062</b> Befragte · <b>13</b> Fragen</div>
+</div></div>
+<button id="skip" type="button" hidden>Intro überspringen ›</button>
+<div id="loader" role="status"><div class="ld"><div class="orb"></div><p>Der Planet wird temperiert …</p></div></div>
+
+<div id="intro" hidden><div class="intro-card" role="dialog" aria-labelledby="introT">
+  <small>Schoko-Typ-Umfrage 2025</small>
+  <h2 id="introT">Willkommen auf dem Schoko-Planeten</h2>
+  <p>Ozeane aus flüssiger Schokolade, Kontinente aus Schokoladenstücken: Auf diesem Planeten stehen 13 Schoko-Figuren. Jede steht für eine Frage, die wir 2.062 Menschen gestellt haben.</p>
+  <ul><li>Dreh den Planeten mit der Maus oder dem Finger.</li><li>Klick auf eine Figur und sieh, wie Deutschland geantwortet hat.</li><li>Schaffst du es, alle 13 Figuren zu finden?</li></ul>
+  <button class="cta" id="enter" type="button">Planeten erkunden</button>
+</div></div>
+
+<div id="sheet" aria-hidden="true"><div class="card" role="dialog" aria-modal="true" aria-labelledby="qT" id="card">
+  <button class="close" id="close" type="button" aria-label="Schließen">✕</button>
+  <div>
+    <div class="kick"><span class="chip" id="qChip"></span><span id="qCat"></span></div>
+    <h2 id="qT"></h2>
+    <p class="q" id="qQ"></p>
+    <div class="rows" id="qRows"></div>
+    <p class="insight" id="qIns"></p>
+  </div>
+  <div class="reelrow"><div class="mini" aria-hidden="true"></div><div><strong id="qReelT"></strong><span>Fantastische News: Nina Nougat und Paul Praline berichten. Reel folgt.</span></div></div>
+  <p class="src">Repräsentative Online-Umfrage von YouGov im Auftrag des Infozentrums Schokolade, n = 2.062, 24.–26.11.2025. Rundungsbedingt ergeben die Werte nicht immer 100 %.</p>
+  <div class="nav"><button type="button" id="prev">◀ Vorige</button><button type="button" id="next">Nächste ▶</button></div>
+</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/environments/RoomEnvironment.js"></script>
+<script>
+(()=>{
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $=s=>document.querySelector(s);const pad=n=>String(n).padStart(2,'0');
+const DK='Weiß nicht / keine Angabe';
+const Q=[
+ {cat:'Qualifizierungsfrage 1',t:'Dein Schoko-Bekenntnis',q:'Welche der folgenden Aussagen über Schokolade trifft am ehesten auf Sie zu?',
+  a:[['Ohne Schokolade fehlt mir etwas',35],['Ich könnte problemlos verzichten',14],['Ich liebe sie, aber nur in Maßen',42],['Ich bin neutral',8],[DK,0]]},
+ {cat:'Qualifizierungsfrage 2',t:'Dein Schoko-Rhythmus',q:'Welche Beschreibung passt am ehesten zu Ihrem Schokoladenkonsum?',
+  a:[['Unregelmäßig',35],['Spontan und impulsiv',30],['Geplant und bewusst',17],['Emotional, aber gesteuert',13],['Ich esse gar keine Schokolade',3],[DK,1]]},
+ {cat:'Qualifizierungsfrage 3',t:'Deine Lieblingsform',q:'Welche Form von Schokolade mögen Sie am liebsten?',
+  a:[['Tafel',53],['Riegel',21],['Pralinen',16],['Brotaufstrich',4],['Schokodrink',3],['Andere',1],[DK,2]]},
+ {cat:'Weitergehende Frage 1',t:'Deine Schoko-Kompetenz',q:'Wenn Sie eine Auszeichnung für „Schokoladenkompetenz“ erhalten würden – wofür am ehesten?',
+  a:[['Für den feinsten Gaumen',28],['Für unübertroffene Begeisterung',20],['Für übermenschliche Selbstkontrolle',16],['Für die besten Vorratsverstecke',12],['Für kreative Resteverwertung',12],[DK,12]]},
+ {cat:'Weitergehende Frage 2',t:'Deine exotische Schoko-Kombi',q:'Welche dieser ungewöhnlichen Kombinationen würden Sie gerne probieren?',
+  a:[['Schokolade mit Lakritze',17],['Schokolade mit Algen',8],['Schokolade mit Blauschimmelkäse',7],['Schokolade mit Sushi',3],['Etwas anderes',4],['Keine, ich bevorzuge Schokolade eher „klassisch“',65],[DK,2]]},
+ {cat:'Weitergehende Frage 3',t:'Dein Schoko-Tier',q:'Wenn Schokolade ein Tier wäre, dann am ehesten …',
+  a:[['… eine Katze','genussvolles Essen und Schnurren',38],['… ein Pandabär','schwarz-weiß, süß und entspannt',23],['… ein Chamäleon','optisch anpassungsfähig und für alle Situationen die richtige Antwort parat',14],['… ein Elefant','kraftvoll und stark wie dunkle Schokolade',13],[DK,12]]},
+ {cat:'Weitergehende Frage 4',t:'Dein Schoko-Urlaub',q:'Wenn Schokolade ein Urlaubsort wäre, dann am ehesten …',
+  a:[['… eine Berghütte mit Kaminfeuer',44],['… ein tropisches Inselparadies',22],['… ein kleines Hotel mit Blick auf den Eiffelturm in Paris',14],['… ein Wochenendtrip ins Unbekannte, ein Abenteuer',9],[DK,11]]},
+ {cat:'Schoko-Nerd-Frage 1',t:'Deine Schoko-Natur',q:'Wenn Schokolade einen Aspekt des Wetters oder der Natur ersetzen könnte, was wäre Ihnen am liebsten?',
+  a:[['Schokolava','die aus einem Vulkan austritt und langsam vom Berg herabläuft',29],['Kakaowolken','die Schokoschnee oder Schokoregen erzeugen',22],['Schokoladentau am Morgen','der sich auf den Blättern und Gräsern absetzt und langsam abperlt',17],['Wind aus Schokoflocken','der beim Vorbeiziehen leise knistert',16],[DK,17]]},
+ {cat:'Schoko-Nerd-Frage 2',t:'Dein Schoko-Ritual',q:'Wenn es im Büro ein offizielles „Schoko-Ritual“ gäbe, welches wäre Ihnen am liebsten?',
+  a:[['Der Kaffeepausen-Pralinenspender','Ein Pralinenspender direkt neben der Kaffeemaschine in der Betriebsküche',45],['Die Küchendienst-Schoki','Wer die Spülmaschine freiwillig ausräumt, bekommt einen Schokoriegel seiner Wahl',22],['Das Neustart-Nougat','Wer bei einem technischen Problem NICHT zum Neustart aufgefordert wird, darf sich eine Nougat-Praline holen',12],['Die Buzzword-Buße','Wer zu viele Buzzwords benutzt, zahlt in die Kakao-Kasse und gibt eine heiße Schokolade aus',5],[DK,15]]},
+ {cat:'Schoko-Nerd-Frage 3',t:'Dein Schoko-Blockbuster',q:'Welches Filmgenre trifft Ihre persönliche Beziehung zu Schokolade am besten?',
+  a:[['Romanze','Du schenkst der Schokolade ein Lächeln, sie schenkt dir dafür Liebe auf den ersten Biss',49],['Fantasy','Die Schokolade wird von einem Drachen bewacht und du musst den süßen Schatz aus seiner Höhle klauen',14],['Action-Thriller','Kannst du die Schokolade schnell genug aus der Verpackung befreien, bevor sie schmilzt?',14],['Drama','Liebt dich die Schokolade so sehr wie du sie?',10],[DK,13]]},
+ {cat:'Schoko-Nerd-Frage 4',t:'Deine Schoko-TV-Serie',q:'Wie würde eine TV-Show mit Ihnen und Schokolade heißen?',
+  a:[['„Die Schokoladenjäger – auf Beutezug im Supermarkt“','Ein Warentester im Einsatz',33],['„Einmal Liebe, Zartbitter bitte!“','Eine Romanze voller Leidenschaft, Schokolade und Intrigen',28],['„Die Kakao-Kommune“','Mockumentary über eine Schokoladenmanufaktur, in der ein Kollege verrückter ist als der andere',14],['„Chocosaurus Maximus“','Familien-Comedyserie mit einem Satansbraten und seinen Schoko-Streichen',9],[DK,15]]},
+ {cat:'Schoko-Nerd-Frage 5',t:'Deine Schoko-Olympiade',q:'Wenn es eine Schokoladen-Olympiade gäbe, was wäre Ihre Disziplin?',
+  a:[['Schokokugel-Gewichtheben','Hier kannst du beweisen, wie viele Kilogramm Schokolade du wirklich pressen kannst',33],['Schokowellen-Surfen','Durch die Zähflüssigkeit der Schokolade eine besondere Herausforderung',26],['Schoko-Ninja-Parcours','Die Schoko-Tafel auf dem Kopf balancieren, während du springst, hangelst und rennst',18],[DK,23]]},
+ {cat:'Schoko-Nerd-Frage 6',t:'Dein Schoko-Influencer-Video',q:'Wenn Sie ein Schokoladen-Influencer wären, was wäre Ihr erstes Video?',
+  a:[['„Der ultimative Produkttester“','Ich probiere JEDE Schokoladensorte in meinem Supermarkt',34],['„Versteckstrategien“','Wie ich meine Schokolade vor Mitbewohnern (oder Partnern) schütze',17],['„Der Schokoladen-Detektiv“','Wer hat das letzte Stück gegessen?',16],['„Schoko-Selfie“','100 Versuche bis zum perfekten Bild von mir und meiner Lieblingsschoki',16],[DK,17]]},
+];
+/* one figure per question: name, lat, lon */
+const F=[
+ {n:'Schoko-Herz',lat:48,lon:6},{n:'Schoko-Wecker',lat:36,lon:138},{n:'Tafel-Stapel',lat:6,lon:-7},{n:'Gold-Pokal',lat:-34,lon:-64},
+ {n:'Schoko-Sushi',lat:0,lon:114},{n:'Schoko-Katze',lat:20,lon:22},{n:'Berghütte',lat:31,lon:84},{n:'Schoko-Vulkan',lat:64,lon:-19},
+ {n:'Kaffeetasse',lat:-10,lon:-52},{n:'Filmklappe',lat:36,lon:-117},{n:'Schoko-Fernseher',lat:-25,lon:134},{n:'Schokokugel-Hantel',lat:47,lon:40},{n:'Selfie-Stativ',lat:42,lon:-78}];
+
+/* ---------- starry chocolate sky (2D canvas behind WebGL) ---------- */
+const sky=$('#sky');
+function drawSky(){const w=sky.width=innerWidth*Math.min(2,devicePixelRatio),h=sky.height=innerHeight*Math.min(2,devicePixelRatio);const c=sky.getContext('2d');
+  let g=c.createRadialGradient(w*.5,h*.48,0,w*.5,h*.48,Math.max(w,h)*.75);g.addColorStop(0,'#2a140b');g.addColorStop(.55,'#160a06');g.addColorStop(1,'#080403');c.fillStyle=g;c.fillRect(0,0,w,h);
+  /* diagonal cocoa nebula band */
+  c.save();c.translate(w*.5,h*.5);c.rotate(-.42);for(let i=0;i<70;i++){const x=(Math.random()-.5)*w*1.6,y=(Math.random()-.5)*h*.22,r=(.06+Math.random()*.16)*Math.max(w,h);
+    const gg=c.createRadialGradient(x,y,0,x,y,r);gg.addColorStop(0,`rgba(${150+Math.random()*60|0},${80+Math.random()*30|0},40,${.035+Math.random()*.04})`);gg.addColorStop(1,'rgba(120,60,30,0)');c.fillStyle=gg;c.fillRect(x-r,y-r,r*2,r*2)}c.restore();
+  for(let i=0;i<260;i++){const x=Math.random()*w,y=Math.random()*h,r=Math.random()<.92?Math.random()*1.1+.3:Math.random()*2+1;c.fillStyle=`rgba(255,${220+Math.random()*30|0},${180+Math.random()*50|0},${.25+Math.random()*.6})`;c.beginPath();c.arc(x,y,r,0,7);c.fill()}}
+drawSky();
+
+/* ---------- three.js scene ---------- */
+const canvas=$('#gl');
+if(THREE.ColorManagement)THREE.ColorManagement.legacyMode=false;   /* hex colours are sRGB */
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio));renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.95;
+const scene=new THREE.Scene();
+const pmrem=new THREE.PMREMGenerator(renderer);const envTex=pmrem.fromScene(new THREE.RoomEnvironment(),.04).texture;
+const camera=new THREE.PerspectiveCamera(32,1,.1,100);
+const controls=new THREE.OrbitControls(camera,canvas);controls.enablePan=false;controls.enableDamping=true;controls.dampingFactor=.08;controls.rotateSpeed=.55;
+controls.minDistance=3.6;controls.maxDistance=10;controls.zoomSpeed=.6;controls.autoRotate=!reduce;controls.autoRotateSpeed=.45;
+/* lights ride with the camera so the planet is always lit from the viewer's upper left */
+const key=new THREE.DirectionalLight(0xffe2b8,2.4);key.position.set(-3,3,4);camera.add(key);
+const rim=new THREE.DirectionalLight(0xffa860,1.6);rim.position.set(4,1.5,-3);camera.add(rim);
+scene.add(camera);scene.add(new THREE.AmbientLight(0x5a3420,.35));
+
+const LL=(lat,lon,r=1)=>{const a=lat*Math.PI/180,o=lon*Math.PI/180;return new THREE.Vector3(Math.cos(a)*Math.cos(o)*r,Math.sin(a)*r,-Math.cos(a)*Math.sin(o)*r)};
+const tl=new THREE.TextureLoader();
+const globe=new THREE.Group();scene.add(globe);
+const uTime={value:0};
+const AS=u=>(window.__A&&window.__A[u])||u;
+function loadTex(u){return new Promise(r=>tl.load(AS(u),t=>r(t),undefined,()=>r(null)))}
+const ready=Promise.all([loadTex('assets/earth-color.webp'),loadTex('assets/earth-bump.webp'),loadTex('assets/earth-rough.webp')]).then(([cMap,bMap,rMap])=>{
+  if(cMap){cMap.encoding=THREE.sRGBEncoding;cMap.anisotropy=8}
+  const mat=new THREE.MeshPhysicalMaterial({map:cMap,bumpMap:bMap,bumpScale:.018,roughnessMap:rMap,roughness:1,metalness:0,clearcoat:.35,clearcoatRoughness:.25,envMap:envTex,envMapIntensity:.35});
+  /* liquid oceans: gently warp the colour lookup where the surface is glossy */
+  mat.onBeforeCompile=sh=>{sh.uniforms.uTime=uTime;sh.fragmentShader='uniform float uTime;\n'+sh.fragmentShader.replace('#include <map_fragment>',`
+    #ifdef USE_MAP
+      float oceanM = 1.0 - smoothstep(0.24, 0.33, texture2D(roughnessMap, vUv).g);
+      vec2 wv = vUv + oceanM*vec2(sin(vUv.y*95.0+uTime*0.9)*0.0011+sin(vUv.x*150.0-uTime*0.55)*0.0007, cos(vUv.x*80.0+uTime*0.7)*0.0009);
+      vec4 sampledDiffuseColor = texture2D(map, wv);
+      diffuseColor *= sampledDiffuseColor;
+    #endif`)};
+  const earth=new THREE.Mesh(new THREE.SphereGeometry(1,128,96),mat);globe.add(earth);
+  /* soft warm atmosphere */
+  const atm=new THREE.Mesh(new THREE.SphereGeometry(1.06,64,48),new THREE.ShaderMaterial({transparent:true,side:THREE.BackSide,depthWrite:false,blending:THREE.AdditiveBlending,
+    vertexShader:'varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader:'varying vec3 vN;void main(){float i=pow(0.72-dot(vN,vec3(0,0,1.)),3.0);gl_FragColor=vec4(1.0,0.62,0.3,1.0)*i*0.9;}'}));
+  scene.add(atm);
+});
+
+/* ---------- chocolate & gold materials ---------- */
+const E={envMap:envTex,envMapIntensity:.45};
+const M={
+  milk:new THREE.MeshPhysicalMaterial({color:0x6a3519,roughness:.34,clearcoat:.7,clearcoatRoughness:.2,...E}),
+  dark:new THREE.MeshPhysicalMaterial({color:0x2e1409,roughness:.3,clearcoat:.7,clearcoatRoughness:.18,...E}),
+  white:new THREE.MeshPhysicalMaterial({color:0xe8d6b8,roughness:.45,clearcoat:.3,...E}),
+  gold:new THREE.MeshStandardMaterial({color:0xd39a35,metalness:1,roughness:.26,envMap:envTex,envMapIntensity:1}),
+  goldGlow:new THREE.MeshStandardMaterial({color:0xd39a35,metalness:.7,roughness:.3,emissive:0x9a6418,emissiveIntensity:.6,envMap:envTex,envMapIntensity:.8}),
+  green:new THREE.MeshPhysicalMaterial({color:0x1e3a25,roughness:.5,clearcoat:.3,...E}),
+  glow:new THREE.MeshStandardMaterial({color:0xfff0d0,emissive:0xffcf8a,emissiveIntensity:1.2}),
+  black:new THREE.MeshPhysicalMaterial({color:0x140c08,roughness:.35,clearcoat:.6,...E}),
+};
+const G=THREE;const mesh=(g,m,x=0,y=0,z=0)=>{const o=new G.Mesh(g,m);o.position.set(x,y,z);return o};
+function lathe(pts,m,seg=40){return new G.Mesh(new G.LatheGeometry(pts.map(p=>new G.Vector2(p[0],p[1])),seg),m)}
+/* each builder returns a group standing on y=0, about 0.16 high (globe radius = 1) */
+const B=[
+ ()=>{const s=new G.Shape();s.moveTo(0,.025);s.bezierCurveTo(0,.06,-.07,.065,-.07,.025);s.bezierCurveTo(-.07,-.01,-.03,-.04,0,-.07);s.bezierCurveTo(.03,-.04,.07,-.01,.07,.025);s.bezierCurveTo(.07,.065,0,.06,0,.025);
+   const h=new G.Mesh(new G.ExtrudeGeometry(s,{depth:.03,bevelEnabled:true,bevelThickness:.014,bevelSize:.012,bevelSegments:6,curveSegments:24}),M.milk);h.position.set(0,.1,-.015);
+   const sw=mesh(new G.TorusGeometry(.028,.006,10,30,Math.PI*1.3),M.white,-.018,.115,.03);sw.rotation.z=.6;const g=new G.Group();g.add(h,sw);return g},
+ ()=>{const g=new G.Group();const body=mesh(new G.CylinderGeometry(.055,.055,.035,40),M.milk,0,.085,0);body.rotation.x=Math.PI/2;
+   const face=mesh(new G.CylinderGeometry(.045,.045,.006,40),M.white,0,.085,.019);face.rotation.x=Math.PI/2;
+   const h1=mesh(new G.BoxGeometry(.006,.03,.004),M.dark,0,.097,.024);const h2=mesh(new G.BoxGeometry(.022,.006,.004),M.dark,.009,.085,.024);
+   g.add(body,face,h1,h2,mesh(new G.SphereGeometry(.018,20,14),M.dark,-.035,.142,0),mesh(new G.SphereGeometry(.018,20,14),M.dark,.035,.142,0),
+     mesh(new G.CylinderGeometry(.006,.008,.03,10),M.dark,-.03,.03,0),mesh(new G.CylinderGeometry(.006,.008,.03,10),M.dark,.03,.03,0));return g},
+ ()=>{const g=new G.Group();[[M.dark,-.035,.14],[M.milk,0,0],[M.white,.035,-.14]].forEach(([m,x,r])=>{const t=new G.Group();
+     for(let i=0;i<3;i++)for(let j=0;j<4;j++)t.add(mesh(new G.BoxGeometry(.026,.026,.014),m,(i-1)*.029,(j-1.5)*.029,0));
+     t.add(mesh(new G.BoxGeometry(.088,.118,.008),m,0,0,-.009));t.position.set(x,.075,(x)*-.3);t.rotation.set(-.15,r,r*.6);g.add(t)});return g},
+ ()=>{const g=new G.Group();g.add(mesh(new G.BoxGeometry(.07,.03,.07),M.dark,0,.015,0));
+   const cup=lathe([[0,0],[.018,0],[.02,.01],[.01,.02],[.01,.05],[.03,.06],[.048,.1],[.05,.14],[.044,.14],[.04,.105],[0,.1]],M.gold);cup.position.y=.03;g.add(cup);
+   [-1,1].forEach(s=>{const hd=mesh(new G.TorusGeometry(.022,.006,10,24,Math.PI),M.gold,s*.05,.14,0);hd.rotation.z=s>0?-Math.PI/2:Math.PI/2;g.add(hd)});return g},
+ ()=>{const g=new G.Group();const r=mesh(new G.CylinderGeometry(.055,.055,.055,40,1,true),M.green,0,.028,0);
+   g.add(r,mesh(new G.CylinderGeometry(.05,.05,.056,40),M.white,0,.028,0),mesh(new G.CylinderGeometry(.022,.022,.058,30),M.milk,0,.028,0));
+   const sticks=[];for(let i=0;i<2;i++){const s=mesh(new G.CylinderGeometry(.009,.009,.12,10),M.black,.07,.06,-.01+i*.02);s.rotation.z=.35;g.add(s)}return g},
+ ()=>{const g=new G.Group();const body=mesh(new G.SphereGeometry(.05,28,20),M.milk,0,.05,0);body.scale.set(1,1.15,.9);
+   const chest=mesh(new G.SphereGeometry(.03,20,14),M.white,0,.055,.03);chest.scale.set(1,1.2,.6);
+   const head=mesh(new G.SphereGeometry(.038,28,20),M.milk,0,.125,.005);
+   const e1=mesh(new G.ConeGeometry(.016,.03,12),M.milk,-.022,.163,0),e2=mesh(new G.ConeGeometry(.016,.03,12),M.milk,.022,.163,0);e1.rotation.z=.3;e2.rotation.z=-.3;
+   const muz=mesh(new G.SphereGeometry(.016,16,12),M.white,0,.115,.035);muz.scale.set(1.3,.8,.8);
+   const eye1=mesh(new G.SphereGeometry(.006,10,8),M.black,-.014,.132,.034),eye2=mesh(new G.SphereGeometry(.006,10,8),M.black,.014,.132,.034);
+   const tail=mesh(new G.TorusGeometry(.04,.009,10,24,Math.PI*1.1),M.milk,.045,.04,-.03);tail.rotation.set(0,.4,-.6);g.add(body,chest,head,e1,e2,muz,eye1,eye2,tail);return g},
+ ()=>{const g=new G.Group();g.add(mesh(new G.BoxGeometry(.11,.065,.08),M.milk,0,.033,0));
+   const roofG=new G.CylinderGeometry(.07,.07,.12,3,1);const roof=mesh(roofG,M.dark,0,.088,0);roof.rotation.z=Math.PI/2;roof.rotation.x=Math.PI/2;roof.scale.set(1,1,.62);roof.rotation.order='ZXY';
+   const roof2=mesh(new G.ConeGeometry(.08,.06,4),M.dark,0,.095,0);roof2.rotation.y=Math.PI/4;roof2.scale.set(1.05,1,.8);
+   const snow=mesh(new G.ConeGeometry(.072,.035,4),M.white,0,.118,0);snow.rotation.y=Math.PI/4;snow.scale.set(1.05,1,.8);
+   g.add(roof2,snow,mesh(new G.BoxGeometry(.018,.04,.018),M.dark,.03,.125,0),mesh(new G.BoxGeometry(.022,.035,.004),M.dark,0,.018,.041),mesh(new G.BoxGeometry(.018,.016,.004),M.glow,-.033,.04,.041),mesh(new G.BoxGeometry(.018,.016,.004),M.glow,.033,.04,.041));return g},
+ ()=>volcano(1),
+ ()=>{const g=new G.Group();g.add(mesh(new G.CylinderGeometry(.065,.06,.01,40),M.white,0,.005,0));
+   const cup=lathe([[0,0],[.03,0],[.04,.01],[.045,.06],[.047,.075],[.042,.075],[.04,.062],[0,.062]],M.white);cup.position.y=.01;
+   const cof=mesh(new G.CylinderGeometry(.04,.04,.004,40),M.dark,0,.07,0);const hd=mesh(new G.TorusGeometry(.018,.006,10,24),M.white,.05,.045,0);
+   g.add(cup,cof,hd,mesh(new G.SphereGeometry(.014,16,12),M.gold,-.05,.02,.03),mesh(new G.SphereGeometry(.014,16,12),M.milk,-.025,.02,.05));return g},
+ ()=>{const g=new G.Group();const board=mesh(new G.BoxGeometry(.11,.08,.014),M.dark,0,.05,0);
+   const top=new G.Group();top.add(mesh(new G.BoxGeometry(.11,.022,.014),M.dark));for(let i=0;i<4;i++){const st=mesh(new G.BoxGeometry(.012,.024,.016),M.white,-.04+i*.027,0,0);st.rotation.z=.5;top.add(st)}
+   top.position.set(-.004,.103,0);top.rotation.z=.22;
+   g.add(board,top,mesh(new G.BoxGeometry(.08,.006,.004),M.white,0,.06,.008),mesh(new G.BoxGeometry(.06,.006,.004),M.white,0,.04,.008));return g},
+ ()=>{const g=new G.Group();const box=mesh(new G.BoxGeometry(.11,.08,.06),M.milk,0,.06,0);const scr=mesh(new G.BoxGeometry(.075,.055,.004),M.glow,-.008,.06,.031);
+   const a1=mesh(new G.CylinderGeometry(.003,.003,.06,8),M.dark,-.015,.12,0),a2=mesh(new G.CylinderGeometry(.003,.003,.06,8),M.dark,.015,.12,0);a1.rotation.z=.4;a2.rotation.z=-.4;
+   g.add(box,scr,a1,a2,mesh(new G.SphereGeometry(.006,10,8),M.gold,.04,.075,.032),mesh(new G.SphereGeometry(.006,10,8),M.gold,.04,.055,.032),
+     mesh(new G.CylinderGeometry(.005,.006,.02,8),M.dark,-.04,.01,0),mesh(new G.CylinderGeometry(.005,.006,.02,8),M.dark,.04,.01,0));return g},
+ ()=>{const g=new G.Group();const bar=mesh(new G.CylinderGeometry(.006,.006,.16,12),M.gold,0,.1,0);bar.rotation.z=Math.PI/2;
+   g.add(bar,mesh(new G.SphereGeometry(.035,24,18),M.dark,-.075,.1,0),mesh(new G.SphereGeometry(.035,24,18),M.milk,.075,.1,0),
+     mesh(new G.CylinderGeometry(.008,.012,.06,10),M.dark,-.035,.035,0),mesh(new G.CylinderGeometry(.008,.012,.06,10),M.dark,.035,.035,0));return g},
+ ()=>{const g=new G.Group();[0,1,2].forEach(i=>{const a=i*Math.PI*2/3;const l=mesh(new G.CylinderGeometry(.003,.004,.1,8),M.dark,Math.sin(a)*.022,.045,Math.cos(a)*.022);l.rotation.set(Math.cos(a)*.35,0,-Math.sin(a)*.35);g.add(l)});
+   g.add(mesh(new G.BoxGeometry(.04,.075,.006),M.black,0,.13,0),mesh(new G.BoxGeometry(.034,.064,.002),M.glow,0,.13,.004));
+   const ring=mesh(new G.TorusGeometry(.05,.006,12,40),M.glow,0,.13,-.004);g.add(ring);return g},
+];
+function volcano(flow){const g=new G.Group();const cone=mesh(new G.CylinderGeometry(.03,.085,.11,36,1,true),M.dark,0,.055,0);
+  const lake=mesh(new G.CylinderGeometry(.029,.029,.006,30),M.milk,0,.108,0);
+  const curve=new G.CatmullRomCurve3([new G.Vector3(0,.108,.02),new G.Vector3(.004,.09,.04),new G.Vector3(-.006,.06,.06),new G.Vector3(.004,.03,.075),new G.Vector3(0,.006,.09)]);
+  const str=new G.Mesh(new G.TubeGeometry(curve,30,.011,10),M.milk);const bub=mesh(new G.SphereGeometry(.016,16,12),M.milk,0,.11,0);bub.userData.bubble=true;
+  g.add(cone,mesh(new G.CylinderGeometry(.085,.09,.01,36),M.dark,0,.005,0),lake,str,bub);return g}
+
+/* place figures on the globe */
+const figs=[],hits=[];
+function place(obj,lat,lon,lift=0){const n=LL(lat,lon).normalize();obj.position.copy(n.clone().multiplyScalar(1+lift));obj.quaternion.setFromUnitVectors(new G.Vector3(0,1,0),n);
+  /* turn the figure so its front faces east-ish (readable while rotating) */
+  obj.rotateY(Math.atan2(n.x,n.z));globe.add(obj);return n}
+F.forEach((f,i)=>{const holder=new G.Group();const fig=B[i]();fig.scale.setScalar(1.85);holder.add(fig);
+  const ring=mesh(new G.TorusGeometry(.125,.008,10,48),M.goldGlow,0,.004,0);ring.rotation.x=Math.PI/2;holder.add(ring);
+  const hit=mesh(new G.SphereGeometry(.18,12,10),new G.MeshBasicMaterial({visible:false}),0,.09,0);hit.userData.i=i;holder.add(hit);hits.push(hit);
+  const n=place(holder,f.lat,f.lon,.004);figs.push({holder,fig,ring,n,i,s:1,ts:1})});
+/* render figures (kie.ai) as upright billboards anchored at the surface */
+figs.forEach((f,i)=>{const mat=new G.SpriteMaterial({transparent:true,alphaTest:.3,toneMapped:false,depthTest:false,depthWrite:false});
+  tl.load(AS(`assets/fig${String(i+1).padStart(2,'0')}.webp`),t=>{t.encoding=THREE.sRGBEncoding;t.anisotropy=4;mat.map=t;mat.needsUpdate=true});
+  const spr=new G.Sprite(mat);spr.center.set(.5,.03);spr.position.y=.006;spr.scale.set(.33,.33,1);spr.renderOrder=10;spr.userData.i=i;f.holder.add(spr);f.spr=spr});
+let figMode=/fig=3d/.test(location.search)?'model':'render';
+function setFigMode(m){figMode=m;figs.forEach(f=>{f.spr.visible=m==='render';f.fig.visible=m!=='render'});
+  $('#swR').setAttribute('aria-pressed',m==='render');$('#swM').setAttribute('aria-pressed',m!=='render')}
+[[19,-100],[-40,173]].forEach(([la,lo])=>{const v=volcano();v.scale.setScalar(.9);place(v,la,lo,.002)});
+
+/* drifting cocoa nibs */
+const nibs=[];const nibM=new G.MeshPhysicalMaterial({color:0x3a1c0d,roughness:.45,clearcoat:.4,flatShading:true,envMap:envTex,envMapIntensity:.3});
+for(let i=0;i<46;i++){const r=.02+Math.random()*.045;const m=mesh(new G.DodecahedronGeometry(r,0),nibM);m.scale.set(1,.55+Math.random()*.4,.8);
+  const rad=2.1+Math.random()*3.2,a=Math.random()*Math.PI*2,y=(Math.random()-.5)*2.6;m.userData={rad,a,y,s:(.02+Math.random()*.05)*(Math.random()<.5?-1:1),rx:Math.random()*.8,ry:Math.random()*.8};scene.add(m);nibs.push(m)}
+
+/* ---------- number tags (HTML) + bottom bar ---------- */
+let opened=new Set();try{JSON.parse(localStorage.getItem('planet-opened')||'[]').forEach(i=>opened.add(i))}catch(e){}
+const tagsEl=$('#tags'),nav=$('#placeNav');const tags=[],chips=[];
+F.forEach((f,i)=>{const t=document.createElement('button');t.type='button';t.className='tag';t.innerHTML=`${pad(i+1)}<span class="lab">${f.n} · ${Q[i].t}</span>`;
+  t.setAttribute('aria-label',`${f.n}: ${Q[i].t} öffnen`);t.onclick=()=>go(i);t.onpointerenter=()=>setHover(i);t.onpointerleave=()=>setHover(-1);tagsEl.appendChild(t);tags.push(t);
+  const c=document.createElement('button');c.type='button';c.innerHTML=`<i>${pad(i+1)}</i>${f.n}`;c.onclick=()=>go(i);nav.appendChild(c);chips.push(c)});
+function progress(){$('#cnt').textContent=`${opened.size} / 13`;$('#meter').style.width=(opened.size/13*100)+'%';
+  tags.forEach((t,i)=>t.classList.toggle('done',opened.has(i)));chips.forEach((c,i)=>c.classList.toggle('done',opened.has(i)))}
+progress();
+
+/* ---------- interaction ---------- */
+const ray=new G.Raycaster(),mouse=new G.Vector2();let hover=-1,downAt=null,idleT=0;
+function setHover(i){hover=i;tags.forEach((t,k)=>t.classList.toggle('hover',k===i));canvas.classList.toggle('hot',i>=0)}
+function pick(e){const r=canvas.getBoundingClientRect();mouse.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(mouse,camera);
+  const h=ray.intersectObjects(figMode==='render'?figs.map(f=>f.spr).filter(s=>s.material.opacity>.5):hits,false);if(!h.length)return -1;const i=h[0].object.userData.i;return facing(i)>.15?i:-1}
+const tmpV=new G.Vector3();
+function facing(i){const w=figs[i].holder.getWorldPosition(tmpV).clone().normalize();return w.dot(camera.position.clone().normalize())}
+canvas.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'&&!downAt)setHover(pick(e))});
+canvas.addEventListener('pointerdown',e=>{downAt={x:e.clientX,y:e.clientY,t:performance.now()};canvas.classList.add('grab');stopAuto();hideHint()});
+addEventListener('pointerup',e=>{canvas.classList.remove('grab');if(!downAt)return;const moved=Math.hypot(e.clientX-downAt.x,e.clientY-downAt.y);
+  if(moved<6&&e.target===canvas){const i=pick(e);if(i>=0)go(i)}downAt=null});
+function stopAuto(){controls.autoRotate=false;idleT=0}
+
+/* fly the camera so that a figure faces the viewer */
+let fly=null;
+function flyTo(i,cb){const dist=camera.position.length();const from=camera.position.clone();
+  const n=figs[i].holder.getWorldPosition(new G.Vector3()).normalize();
+  const to=n.clone().multiplyScalar(dist);
+  fly={from,to,t:0,dur:reduce?.01:1.1,cb};stopAuto()}
+/* when the sheet is open, slide the rendered planet out from under it (left on desktop, up on phones) */
+let shift=0;
+function applyShift(dt){const mob=innerWidth<=760;const target=sheetOpen||(fly&&fly.cb)?1:0;shift+=(target-shift)*Math.min(1,dt*5);
+  const w=innerWidth,h=innerHeight;if(shift<.001){camera.clearViewOffset();return}
+  camera.setViewOffset(w,h,mob?0:w*.2*shift,mob?h*.24*shift:0,w,h)}
+
+/* ---------- question sheet ---------- */
+const sheet=$('#sheet'),card=$('#card');let sheetOpen=false,cur=0,lastFocus=null;
+function render(i){const q=Q[i];cur=i;$('#qChip').textContent=`${pad(i+1)} · ${F[i].n}`;$('#qCat').textContent=q.cat;$('#qT').textContent=q.t;$('#qQ').textContent=q.q;
+  const rows=q.a.map(r=>r.length===3?{l:r[0],d:r[1],p:r[2]}:{l:r[0],d:'',p:r[1]});
+  const max=Math.max(...rows.filter(r=>r.l!==DK).map(r=>r.p)),scale=Math.max(...rows.map(r=>r.p));const top=rows.find(r=>r.p===max&&r.l!==DK);
+  $('#qRows').innerHTML=rows.map(r=>`<div class="row${r===top?' top':''}${r.l===DK?' dk':''}"><div class="t">${r.l}${r.d?`<em>${r.d}</em>`:''}</div>
+    <div class="track"><div class="fill" data-w="${scale?r.p/scale*100:0}"></div></div><div class="p" data-p="${r.p}">0 %</div></div>`).join('');
+  $('#qIns').innerHTML=`<b>${top.p} %</b> entscheiden sich für: ${top.l.replace(/^… /,'')}${top.d?' – '+top.d:''}.`;
+  $('#qReelT').textContent=`Reel: ${q.t}`;$('#prev').textContent=`◀ ${F[(i+12)%13].n}`;$('#next').textContent=`${F[(i+1)%13].n} ▶`;
+  chips.forEach((c,k)=>c.classList.toggle('on',k===i));
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{card.querySelectorAll('.fill').forEach(f=>f.style.width=f.dataset.w+'%');
+    card.querySelectorAll('.p').forEach(p=>{const to=+p.dataset.p;if(reduce){p.textContent=to+' %';return}const t0=performance.now();
+      (function tick(now){const k=Math.min(1,(now-t0)/900);p.textContent=Math.round(to*(1-Math.pow(1-k,3)))+' %';if(k<1)requestAnimationFrame(tick)})(t0)})}));
+  if(!opened.has(i)){opened.add(i);try{localStorage.setItem('planet-opened',JSON.stringify([...opened]))}catch(e){}progress()}}
+function clearFills(){card.querySelectorAll('.fill').forEach(f=>f.style.width=0)}
+function go(i){lastFocus=tags[i];if(sheetOpen){clearFills();render(i);flyTo(i);return}
+  flyTo(i,()=>{render(i);sheetOpen=true;sheet.classList.add('on');sheet.setAttribute('aria-hidden','false');$('#close').focus({preventScroll:true})});hideHint()}
+function closeSheet(){if(!sheetOpen)return;sheetOpen=false;sheet.classList.remove('on');sheet.setAttribute('aria-hidden','true');clearFills();chips.forEach(c=>c.classList.remove('on'));idleT=0;
+  if(lastFocus)lastFocus.focus({preventScroll:true})}
+$('#close').onclick=closeSheet;sheet.addEventListener('click',e=>{if(e.target===sheet)closeSheet()});
+$('#prev').onclick=()=>go((cur+12)%13);$('#next').onclick=()=>go((cur+1)%13);
+addEventListener('keydown',e=>{if(!sheetOpen)return;if(e.key==='Escape')closeSheet();if(e.key==='ArrowRight')$('#next').click();if(e.key==='ArrowLeft')$('#prev').click()});
+let sg=null;card.addEventListener('touchstart',e=>{const t=e.touches[0];sg={x:t.clientX,y:t.clientY,top:card.scrollTop}},{passive:true});
+card.addEventListener('touchend',e=>{if(!sg)return;const t=e.changedTouches[0],dx=t.clientX-sg.x,dy=t.clientY-sg.y;
+  if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*1.4)(dx<0?$('#next'):$('#prev')).click();else if(innerWidth<=760&&dy>90&&sg.top<=0&&card.scrollTop<=0)closeSheet();sg=null},{passive:true});
+
+/* ---------- hint & intro ---------- */
+const hint=$('#hint');function hideHint(){hint.classList.add('gone')}
+$('#enter').onclick=()=>{const it=$('#intro');it.classList.add('gone');setTimeout(()=>it.hidden=true,450);hint.classList.remove('gone');setTimeout(hideHint,8000)};
+
+/* ---------- size ---------- */
+function fit(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;
+  /* keep the planet around half the screen height on desktop, fit the width on phones */
+  camera.fov=w/h<.8?44:32;camera.updateProjectionMatrix();drawSky()}
+addEventListener('resize',fit);fit();
+camera.position.copy(LL(28,18).normalize().multiplyScalar(innerWidth/innerHeight<.8?7.6:6.2));controls.update();
+
+/* ---------- loop ---------- */
+const clock=new G.Clock();const proj=new G.Vector3();
+function frame(){const raw=clock.getDelta(),dt=Math.min(.05,raw),T=clock.elapsedTime;uTime.value=T;
+  if(OP.on)opFrame(raw);
+  else if(fly){fly.t+=Math.min(.25,raw)/fly.dur;const k=Math.min(1,fly.t),e=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;
+    const a=fly.from.clone().normalize(),b=fly.to.clone().normalize(),q=new G.Quaternion().setFromUnitVectors(a,b);
+    const qk=new G.Quaternion().slerp(q,e);camera.position.copy(a.applyQuaternion(qk).multiplyScalar(fly.from.length()));camera.lookAt(0,0,0);
+    if(k>=1){const cb=fly.cb;fly=null;cb&&cb()}}
+  else{controls.update();if(!sheetOpen&&!downAt&&!reduce){idleT+=dt;if(idleT>7)controls.autoRotate=true}}
+  if(!OP.on)applyShift(Math.min(.25,raw));
+  figs.forEach((f,i)=>{f.ts=(i===hover)?1.25:1;f.s+=(f.ts-f.s)*Math.min(1,dt*10);const pp=f.pop??1;f.fig.scale.setScalar(1.85*f.s*Math.max(.001,pp));f.ring.scale.setScalar(Math.max(.001,Math.min(1,pp)));
+    const fc=facing(i);if(f.spr.visible){const k=.33*f.s*Math.max(.001,pp);f.spr.scale.set(k,k,1);f.spr.material.opacity=Math.max(0,Math.min(1,(fc-.04)*6))}
+    f.ring.material.emissiveIntensity=.45+Math.sin(T*2.2+i)*.25+(i===hover?.6:0);
+    const face=facing(i);f.holder.getWorldPosition(proj);if(figMode==='render')proj.add(upV.set(0,1,0).applyQuaternion(camera.quaternion).multiplyScalar(.36*f.s));else proj.add(f.n.clone().multiplyScalar(.38));proj.project(camera);
+    const x=(proj.x*.5+.5)*innerWidth,y=(-proj.y*.5+.5)*innerHeight;const t=tags[i];
+    t.style.transform=`translate(${x}px,${y}px) scale(${.75+Math.max(0,face)*.3})`;const vis=face>.2;t.style.opacity=vis?Math.min(1,(face-.2)*4)*Math.min(1,Math.max(0,pp)):0;t.style.pointerEvents=vis?'auto':'none';t.tabIndex=vis?0:-1});
+  globe.traverse(o=>{if(o.userData.bubble){const s=1+Math.sin(T*3+o.id)*.25;o.scale.setScalar(s)}});
+  nibs.forEach(m=>{const u=m.userData;u.a+=u.s*dt*.3;m.position.set(Math.cos(u.a)*u.rad,u.y+Math.sin(T*.2+u.rad)*.1,Math.sin(u.a)*u.rad);m.rotation.x+=u.rx*dt;m.rotation.y+=u.ry*dt});
+  renderer.render(scene,camera);requestAnimationFrame(frame)}
+
+$('#swR').onclick=()=>setFigMode('render');$('#swM').onclick=()=>setFigMode('model');setFigMode(figMode);
+const upV=new G.Vector3();
+/* ---------- opener ---------- */
+const OP={on:false,t:0,dur:5.2,t0:0,D:camera.position.length(),end:camera.position.clone().normalize(),start:LL(-18,150).normalize(),done:false};
+(()=>{const h=$('#opT');let i=0;h.innerHTML=h.textContent.split(' ').map(w=>'<span class="w">'+[...w].map(c=>`<span class="c" style="--i:${i++}">${c}</span>`).join('')+'</span>').join(' ')})();
+function showIntroCard(){if(opened.size===0){$('#intro').hidden=false;$('#enter').focus()}else{hint.classList.remove('gone');setTimeout(hideHint,6000)}}
+function endOpener(){if(OP.done)return;OP.done=true;OP.on=false;controls.enabled=true;camera.up.set(0,1,0);renderer.toneMappingExposure=.95;
+  camera.position.copy(OP.end).multiplyScalar(OP.D);camera.lookAt(0,0,0);controls.update();figs.forEach(f=>f.pop=1);
+  document.body.classList.add('out');setTimeout(()=>{document.body.classList.remove('op','run','out','flare');$('#opener').hidden=true;$('#skip').hidden=true;showIntroCard()},700)}
+function startOpener(){OP.on=true;OP.go=true;document.body.classList.add('op');$('#opener').hidden=false;$('#skip').hidden=false;
+  figs.forEach(f=>f.pop=0);requestAnimationFrame(()=>document.body.classList.add('run'))}
+$('#skip').onclick=()=>{OP.t=OP.dur};
+canvas.addEventListener('pointerdown',e=>{if(OP.on){OP.t=OP.dur;e.stopImmediatePropagation()}},true);
+addEventListener('keydown',e=>{if(OP.on&&(e.key==='Escape'||e.key===' '||e.key==='Enter')){e.preventDefault();OP.t=OP.dur}});
+const easeOutQ=k=>1-Math.pow(1-k,4),backOut=k=>{const c=1.9;return 1+(c+1)*Math.pow(k-1,3)+c*Math.pow(k-1,2)};
+function opFrame(raw){if(OP.go)OP.t+=Math.min(.05,raw);const t=OP.t;
+  renderer.toneMappingExposure=.95*Math.min(1,Math.max(.05,t/1.4));
+  const k=Math.min(1,Math.max(0,(t-.2)/3.6)),e=easeOutQ(k),kd=Math.min(1,Math.max(0,(t-1.6)/2)),ed=1-Math.pow(1-kd,3);
+  const q=new G.Quaternion().setFromUnitVectors(OP.start,OP.end),qk=new G.Quaternion().slerp(q,e);
+  const dir=OP.start.clone().applyQuaternion(qk);const dist=OP.D+(17-OP.D)*(1-ed);
+  camera.position.copy(dir.multiplyScalar(dist));camera.up.set(Math.sin((1-ed)*.45),1,0).normalize();camera.lookAt(0,0,0);
+  /* figures pop up one after another, front ones first */
+  const ord=figs.map((f,i)=>[i,facing(i)]).sort((a,b)=>b[1]-a[1]);
+  ord.forEach(([i],n)=>{const d=3.35+n*.09,p=Math.min(1,Math.max(0,(t-d)/.5));figs[i].pop=p>0?Math.max(0,backOut(p)):0});
+  const bc=document.body.classList;if(t>=2.7&&!bc.contains('out'))bc.add('out');if(t>=3.3&&!bc.contains('flare'))bc.add('flare');
+  if(t>=OP.dur){camera.up.set(0,1,0);endOpener()}}
+ready.then(()=>{
+  if(reduce){requestAnimationFrame(frame);setTimeout(()=>{$('#loader').classList.add('gone');showIntroCard()},500);return}
+  OP.on=true;controls.enabled=false;figs.forEach(f=>f.pop=0);camera.position.copy(OP.start).multiplyScalar(17);camera.lookAt(0,0,0);renderer.toneMappingExposure=.05;
+  try{renderer.compile(scene,camera)}catch(e){}
+  requestAnimationFrame(frame);setTimeout(()=>{$('#loader').classList.add('gone');startOpener()},350)});
+})();
+</script>
+
+</body></html>

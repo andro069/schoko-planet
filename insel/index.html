@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><style>[hidden]{display:none!important}</style></head><body>
+<title>Schoko-Insel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
+<style>
+/* Layout: one full-bleed island stage (1920×1080 scene units, scaled to cover, swipeable when narrower);
+   thin HUD on top, a place bar at the bottom, and a question sheet that opens after the camera flies to a place.
+   Single committed look: a sunlit island illustration in both OS themes. */
+:root{
+  --choc:#4a2617; --choc-2:#6e3c22; --choc-3:#8a5233;
+  --sea:#1f7f8c; --sea-d:#13525b; --sand:#f3dfb4; --coral:#e2704c; --sun:#f0bf4c;
+  --paper:#fffaf1; --cream:#f5ead6; --line:#e5d4b8;
+  --ink:#2a1911; --muted:#78604f; --dunno:#cbbba8;
+  --display:'Fredoka','Baloo 2','Trebuchet MS',system-ui,sans-serif;
+  --body:'Nunito','Segoe UI',system-ui,-apple-system,sans-serif;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{background:#2a8fb0;color:var(--ink);font-family:var(--body);overflow:hidden}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--sun);outline-offset:3px}
+
+#view{position:fixed;inset:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;overscroll-behavior:contain;cursor:grab}
+#view::-webkit-scrollbar{display:none}
+#view.drag{cursor:grabbing}
+#sizer{position:relative}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;overflow:hidden;background:#2f9fbf}
+#world{position:absolute;inset:0;transform-origin:960px 540px;transition:transform .9s cubic-bezier(.65,0,.25,1)}
+#world>img,#world>video{position:absolute;inset:0;width:1920px;height:1080px;max-width:none;user-select:none;-webkit-user-drag:none}
+#world>video{opacity:0;transition:opacity .8s}
+#world>video.live{opacity:1}
+.fx{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.gull{position:absolute;left:0;top:0;width:170px;height:187px;background:url(assets/gull.webp) 0 0/680px 187px no-repeat;will-change:transform}
+.fish{position:absolute;left:0;top:0;width:120px;height:180px;margin:-90px 0 0 -60px;will-change:transform}
+.ring{position:absolute;width:38px;height:10px;margin:-5px 0 0 -19px;border-radius:50%;border:3px solid rgba(255,255,255,.9);animation:ring .9s ease-out forwards}
+@keyframes ring{to{transform:scale(2.2);opacity:0}}
+.drop{position:absolute;width:5px;height:5px;margin:-2.5px;border-radius:50%;background:rgba(235,252,255,.95)}
+
+/* ---------- place pins ---------- */
+.pin{position:absolute;left:0;top:0;width:32px;height:32px;margin:-16px 0 0 -16px;border:0;padding:0;border-radius:50%;cursor:pointer;
+  background:var(--paper);color:var(--choc);font:700 14px/32px var(--display);box-shadow:0 4px 0 rgba(74,38,23,.35),0 5px 10px rgba(20,40,50,.35);transition:transform .25s cubic-bezier(.3,1.6,.5,1),background .2s}
+.pin::before{content:"";position:absolute;inset:-6px;border-radius:50%;border:3px solid rgba(255,250,241,.85);animation:pulse 2.4s ease-out infinite;pointer-events:none}
+.pin::after{content:"";position:absolute;inset:-18px;border-radius:50%}
+@keyframes pulse{0%{transform:scale(.7);opacity:1}100%{transform:scale(1.5);opacity:0}}
+.pin:hover,.pin:focus-visible{transform:scale(1.25) translateY(-3px);background:var(--sun)}
+.pin.done{background:var(--sea);color:#fff}
+.pin.done::before{animation:none;opacity:0}
+.pin .lab{position:absolute;left:50%;top:100%;transform:translate(-50%,10px) scale(.9);white-space:nowrap;opacity:0;transition:.2s;pointer-events:none;
+  background:var(--choc);color:var(--paper);font:600 24px/1 var(--display);padding:10px 16px;border-radius:999px;box-shadow:0 6px 16px rgba(30,15,8,.35)}
+.pin:hover .lab,.pin:focus-visible .lab{opacity:1;transform:translate(-50%,16px) scale(1)}
+.sign{position:absolute;left:836px;top:842px;width:210px;height:90px;border:0;background:transparent;cursor:pointer;border-radius:14px}
+.sign:hover,.sign:focus-visible{box-shadow:0 0 0 5px rgba(240,191,76,.9)}
+
+/* ---------- HUD ---------- */
+.hud{position:fixed;left:0;right:0;pointer-events:none;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;z-index:5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.hud>*{pointer-events:auto}
+.hud.top{top:0;padding-top:calc(14px + env(safe-area-inset-top,0px))}
+.brand{background:rgba(255,250,241,.93);backdrop-filter:blur(6px);border-radius:18px;padding:10px 16px 12px;box-shadow:0 6px 18px rgba(20,40,50,.25);max-width:330px}
+.brand small{display:block;font-size:.68rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--coral)}
+.brand h1{margin:2px 0 0;font:600 1.35rem/1.1 var(--display);color:var(--choc);text-wrap:balance}
+.brand p{margin:3px 0 0;font-size:.8rem;color:var(--muted)}
+.count{background:var(--choc);color:var(--paper);border-radius:999px;padding:8px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 18px rgba(20,40,50,.3);font-weight:700;font-size:.85rem;white-space:nowrap}
+.count b{font:600 1.05rem var(--display);font-variant-numeric:tabular-nums}
+.meter{width:90px;height:8px;border-radius:999px;background:rgba(255,250,241,.25);overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--sun);transition:width .6s}
+.places{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;justify-content:center;
+  padding:0 max(16px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));pointer-events:none}
+.places nav{pointer-events:auto;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;max-width:100%;padding:8px;border-radius:20px;background:rgba(255,250,241,.93);backdrop-filter:blur(6px);box-shadow:0 8px 24px rgba(20,40,50,.3)}
+.places nav::-webkit-scrollbar{display:none}
+.places button{flex:none;border:0;border-radius:999px;padding:7px 12px 7px 7px;background:var(--cream);color:var(--choc);font:600 .85rem var(--display);cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap}
+.places button i{font-style:normal;width:24px;height:24px;border-radius:50%;background:var(--paper);display:grid;place-items:center;font-size:.75rem;font-variant-numeric:tabular-nums}
+.places button:hover{background:var(--line)}
+.places button.done i{background:var(--sea);color:#fff}
+
+/* ---------- loader & intro ---------- */
+#loader{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#2a8fb0,#0f3d4a 75%);color:var(--paper);transition:opacity .6s}
+#loader.gone{opacity:0;pointer-events:none}
+.ld{display:grid;justify-items:center;gap:18px;padding-inline:max(16px,env(safe-area-inset-left,0px))}
+.bar{display:grid;grid-template-columns:repeat(4,46px);gap:6px;padding:8px;border-radius:12px;background:#2a160d;box-shadow:inset 0 0 0 3px #6b3a22}
+.bar i{height:34px;border-radius:6px;background:#3a1f12;box-shadow:inset 0 -4px 0 rgba(0,0,0,.25);transition:background .3s}
+.bar i.on{background:linear-gradient(160deg,#a8653d,#6e3c22);box-shadow:inset 0 -4px 0 rgba(0,0,0,.25),inset 0 2px 0 rgba(255,210,170,.35)}
+.ld p{margin:0;font:600 1.05rem var(--display)}
+.ld small{font-variant-numeric:tabular-nums;opacity:.75}
+#intro{position:fixed;inset:0;z-index:15;display:grid;place-items:center;background:rgba(10,40,50,.35);padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));transition:opacity .45s}
+#intro.gone{opacity:0;pointer-events:none}
+.intro-card{background:var(--paper);border-radius:28px;max-width:520px;padding:28px 28px 26px;box-shadow:0 24px 60px rgba(10,30,40,.45)}
+.intro-card small{font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--coral)}
+.intro-card h2{margin:6px 0 10px;font:700 2.2rem/1.05 var(--display);color:var(--choc);text-wrap:balance}
+.intro-card p{margin:0 0 10px;line-height:1.55;color:#4b3326}
+.intro-card ul{margin:4px 0 18px;padding:0;list-style:none;display:grid;gap:6px;color:#4b3326;font-size:.95rem}
+.intro-card li::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--sea);margin-right:10px;transform:translateY(-1px)}
+.cta{border:0;border-radius:999px;padding:13px 26px;background:var(--sea);color:#fff;font:600 1.1rem var(--display);cursor:pointer;box-shadow:0 4px 0 var(--sea-d)}
+.cta:active{transform:translateY(2px);box-shadow:0 2px 0 var(--sea-d)}
+
+/* ---------- question sheet ---------- */
+#sheet{position:fixed;inset:0;z-index:12;display:grid;place-items:center;background:rgba(10,35,45,.4);
+  padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  opacity:0;pointer-events:none;transition:opacity .35s}
+#sheet.on{opacity:1;pointer-events:auto}
+.card{position:relative;width:min(1040px,100%);max-height:100%;overflow:auto;background:var(--paper);border-radius:30px;box-shadow:0 30px 80px rgba(10,25,35,.5);
+  display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:28px;padding:30px 32px 26px;transform:translateY(30px) scale(.94);opacity:0;transition:transform .45s cubic-bezier(.2,1.2,.4,1),opacity .3s}
+#sheet.on .card{transform:none;opacity:1}
+.close{position:absolute;right:16px;top:16px;width:42px;height:42px;border-radius:50%;border:0;background:var(--cream);color:var(--choc);font-size:1.3rem;cursor:pointer}
+.kick{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:.75rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding-right:48px}
+.chip{display:inline-flex;padding:4px 10px;border-radius:999px;background:var(--sea);color:#fff;letter-spacing:.06em}
+.card h2{margin:10px 48px 6px 0;font:700 2.1rem/1.05 var(--display);color:var(--choc);text-wrap:balance}
+.card .q{margin:0 0 20px;font-size:1.05rem;line-height:1.5;color:#4b3326;max-width:62ch}
+.rows{display:grid;gap:12px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 56px;gap:4px 12px;align-items:center}
+.row .t{font-weight:700;font-size:.95rem;line-height:1.3;grid-column:1/-1}
+.row .t em{display:block;font-style:normal;font-weight:400;font-size:.82rem;color:var(--muted);margin-top:1px}
+.row .track{height:16px;border-radius:999px;background:var(--cream);overflow:hidden}
+.row .fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--choc-2),var(--choc-3));transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.row.top .fill{background:linear-gradient(90deg,#c65a39,var(--coral))}
+.row.dk .fill{background:var(--dunno)}
+.row.dk .t{color:var(--muted);font-weight:600}
+.row .p{font:600 1.15rem var(--display);text-align:right;font-variant-numeric:tabular-nums;color:var(--choc)}
+.row.top .p{color:var(--coral)}
+.insight{margin:18px 0 0;padding:12px 16px;border-radius:16px;background:var(--cream);font-weight:700;color:var(--choc);line-height:1.4}
+.insight b{font-family:var(--display);font-weight:600;color:var(--coral);font-size:1.15rem}
+.src{margin:14px 0 0;font-size:.76rem;color:var(--muted)}
+.reel{align-self:start;display:grid;gap:10px}
+.phone{aspect-ratio:9/16;max-width:100%;border-radius:24px;background:linear-gradient(170deg,#2a8fb0,#13525b 55%,#3a2014);position:relative;overflow:hidden;box-shadow:inset 0 0 0 6px #241510}
+.phone video{width:100%;height:100%;object-fit:cover;display:block}
+.phone .ph{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:12px;color:var(--paper);text-align:center;padding:18px}
+.phone .play{width:64px;height:64px;border-radius:50%;background:rgba(255,250,241,.18);display:grid;place-items:center;box-shadow:0 0 0 2px rgba(255,250,241,.5)}
+.phone .play::after{content:"";border-left:20px solid var(--paper);border-top:12px solid transparent;border-bottom:12px solid transparent;margin-left:5px}
+.phone strong{font:600 1.05rem/1.2 var(--display)}
+.phone span{font-size:.78rem;opacity:.75;line-height:1.4}
+.phone .ticker{position:absolute;left:0;right:0;bottom:0;background:var(--coral);color:#fff;font:600 .72rem var(--display);padding:6px 10px;letter-spacing:.04em;white-space:nowrap;overflow:hidden}
+.reel p{margin:0;font-size:.78rem;color:var(--muted);text-align:center}
+.nav{grid-column:1/-1;display:flex;justify-content:space-between;gap:12px;border-top:2px dashed var(--line);padding-top:16px}
+.nav button{border:0;background:var(--cream);color:var(--choc);border-radius:999px;padding:10px 18px;font:600 .95rem var(--display);cursor:pointer}
+.nav button:hover{background:var(--line)}
+
+@media (max-width:760px){
+  .brand{padding:8px 12px 9px;max-width:58vw}
+  .brand h1{font-size:1.05rem}
+  .brand p,.brand small,.meter{display:none}
+  .count{padding:7px 12px}
+  .count>span{display:none}
+  .card{grid-template-columns:1fr;padding:22px 18px 18px;gap:18px;border-radius:24px}
+  .card h2{font-size:1.65rem}
+  .reel{grid-template-columns:96px 1fr;align-items:center}
+  .reel p{text-align:left}
+  .phone .ph strong{font-size:.8rem}
+  .phone .ph span,.phone .ticker{display:none}
+  .phone .play{width:40px;height:40px}
+  .intro-card h2{font-size:1.8rem}
+}
+/* ---------- phone portrait: camera + card carousel + bottom sheet ---------- */
+.cards,.cdots,.grab,.mhint{display:none}
+html.mob #view{overflow:hidden;touch-action:none;cursor:default}
+html.mob .places{display:none}
+html.mob #world{transform-origin:0 0;transition:transform .7s cubic-bezier(.65,0,.25,1)}
+html.mob .pin{width:44px;height:44px;margin:-22px 0 0 -22px;font:700 18px/44px var(--display)}
+html.mob .pin::before{inset:-7px;border-width:3px}
+html.mob .pin .lab{font-size:20px}
+html.mob .pin .lt{display:none}
+html.mob .pin.on{width:58px;height:58px;margin:-29px 0 0 -29px;line-height:58px;font-size:23px;background:var(--sun);color:var(--choc);box-shadow:0 0 0 9px rgba(240,191,76,.45),0 6px 14px rgba(0,0,0,.35)}
+html.mob .pin.on .lab{opacity:1;transform:translate(-50%,16px)}
+html.mob .cards{display:flex;position:fixed;left:0;right:0;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:5;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;
+  padding:4px calc(50vw - 125px)}
+.cards::-webkit-scrollbar{display:none}
+.mcard{flex:none;scroll-snap-align:center;width:250px;border:0;text-align:left;background:var(--paper);border-radius:20px;padding:10px;display:grid;grid-template-columns:62px minmax(0,1fr);gap:3px 10px;align-items:center;
+  box-shadow:0 8px 20px rgba(0,0,0,.28);cursor:pointer;transition:transform .25s,opacity .25s;opacity:.85;transform:scale(.93)}
+.mcard.on{opacity:1;transform:none}
+.mcard .th{grid-row:span 3;width:62px;height:62px;border-radius:14px;background:url(assets/island-poster.webp) no-repeat;background-size:960px 540px}
+.mcard small{font-size:.62rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--coral)}
+.mcard.done small::after{content:" · entdeckt";color:var(--sea)}
+.mcard strong{font:600 .95rem/1.15 var(--display);color:var(--choc)}
+.mcard em{font-style:normal;justify-self:start;background:var(--sea);color:#fff;font:600 .74rem var(--display);padding:4px 11px;border-radius:999px}
+html.mob .cdots{display:flex;position:fixed;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom,0px));justify-content:center;gap:4px;z-index:5;pointer-events:none}
+.cdots i{width:6px;height:6px;border-radius:3px;background:rgba(255,250,241,.6);transition:width .25s}
+.cdots i.on{width:16px;background:var(--paper)}
+html.mob .mhint{display:block;position:fixed;left:50%;bottom:calc(126px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:5;background:var(--sun);color:var(--choc);
+  font:600 .85rem var(--display);padding:7px 14px;border-radius:999px;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.25);pointer-events:none;transition:opacity .4s}
+.mhint.gone{opacity:0!important}
+html.mob #sheet{place-items:end stretch;padding:0;background:linear-gradient(180deg,rgba(10,35,45,0) 15%,rgba(10,35,45,.4))}
+html.mob .card{box-sizing:border-box;width:100%;max-height:72vh;border-radius:26px 26px 0 0;transform:translateY(100%);opacity:1;touch-action:pan-y;
+  padding:8px 18px calc(16px + env(safe-area-inset-bottom,0px));gap:14px;transition:transform .45s cubic-bezier(.2,1,.3,1)}
+html.mob #sheet.on .card{transform:none}
+html.mob .grab{display:block;grid-column:1/-1;width:44px;height:5px;border-radius:3px;background:var(--line);margin:4px auto -4px}
+html.mob .close{top:12px;right:12px;width:36px;height:36px}
+html.mob .nav button{padding:9px 13px;font-size:.85rem}
+@media (prefers-reduced-motion:reduce){.pin::before{animation:none}#world{transition:none!important}}
+</style>
+
+<div id="view"><div id="sizer"><div id="stage"><div id="world">
+  <img src="assets/island-poster.webp" alt="Illustrierte Schoko-Insel mit Vulkan und Schokoladensee, Berghütte, Strandbar, Arena, Wetterstation, Café, Pariser Hotel, Marktstand, Pokalbühne, Freiluftkino, Tierwiese, Selfie-Steg, Segelboot und einem Willkommensschild." draggable="false">
+  <video id="iv" muted loop playsinline autoplay preload="auto" aria-hidden="true"></video>
+  <div class="fx" id="fx"></div>
+  <button class="sign" id="sign" type="button" aria-label="Über die Schoko-Typ-Umfrage 2025"></button>
+  <div id="pins"></div>
+</div></div></div></div>
+
+<div class="hud top">
+  <div class="brand"><small>Infozentrum Schokolade · YouGov</small><h1>Die Schoko-Insel</h1><p>13 Orte · 2.062 Befragte · 24.–26.11.2025</p></div>
+  <div class="count" aria-live="polite"><span>Entdeckt</span><b id="cnt">0 / 13</b><span class="meter"><i id="meter"></i></span></div>
+</div>
+<div class="places"><nav id="placeNav" aria-label="Orte der Insel"></nav></div>
+<div class="cards" id="cards" role="group" aria-label="Orte der Insel"></div><div class="cdots" id="cdots" aria-hidden="true"></div>
+<div class="mhint gone" id="mhint">Wisch die Karten oder tipp auf einen Ort</div>
+
+<div id="loader" role="status"><div class="ld">
+  <div class="bar" id="lbar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <p>Die Fähre legt gleich an …</p><small id="lpct">0 %</small>
+</div></div>
+
+<div id="intro" hidden><div class="intro-card" role="dialog" aria-labelledby="introT">
+  <small>Schoko-Typ-Umfrage 2025</small>
+  <h2 id="introT">Willkommen auf der Schoko-Insel</h2>
+  <p>Wir haben 2.062 Menschen gefragt, wie sie sich Schokolade in fantastischen Situationen vorstellen. Jede Antwort hat hier einen Ort bekommen.</p>
+  <ul><li>Klick auf einen Ort, und die Insel zeigt dir, wie Deutschland geantwortet hat.</li><li>Unten findest du alle 13 Orte auf einen Blick.</li><li>Schaffst du es, die ganze Insel zu entdecken?</li></ul>
+  <button class="cta" id="enter" type="button">Insel erkunden</button>
+</div></div>
+
+<div id="sheet" aria-hidden="true"><div class="card" role="dialog" aria-modal="true" aria-labelledby="qT" id="card">
+  <div class="grab" aria-hidden="true"></div>
+  <button class="close" id="close" type="button" aria-label="Schließen">✕</button>
+  <div>
+    <div class="kick"><span class="chip" id="qChip"></span><span id="qCat"></span></div>
+    <h2 id="qT"></h2>
+    <p class="q" id="qQ"></p>
+    <div class="rows" id="qRows"></div>
+    <p class="insight" id="qIns"></p>
+    <p class="src">Repräsentative Online-Umfrage von YouGov im Auftrag des Infozentrums Schokolade, n = 2.062, 24.–26.11.2025. Rundungsbedingt ergeben die Werte nicht immer 100 %.</p>
+  </div>
+  <div class="reel"><div class="phone" id="qReel"></div><p>Fantastische News: das Reel zur Frage</p></div>
+  <div class="nav"><button type="button" id="prev">◀ Voriger Ort</button><button type="button" id="next">Nächster Ort ▶</button></div>
+</div></div>
+
+<script>
+(()=>{
+const W=1920,H=1080;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $=s=>document.querySelector(s);const pad=n=>String(n).padStart(2,'0');
+const DK='Weiß nicht / keine Angabe';
+const Q=[
+ {cat:'Qualifizierungsfrage 1',t:'Dein Schoko-Bekenntnis',q:'Welche der folgenden Aussagen über Schokolade trifft am ehesten auf Sie zu?',
+  a:[['Ohne Schokolade fehlt mir etwas',35],['Ich könnte problemlos verzichten',14],['Ich liebe sie, aber nur in Maßen',42],['Ich bin neutral',8],[DK,0]]},
+ {cat:'Qualifizierungsfrage 2',t:'Dein Schoko-Rhythmus',q:'Welche Beschreibung passt am ehesten zu Ihrem Schokoladenkonsum?',
+  a:[['Unregelmäßig',35],['Spontan und impulsiv',30],['Geplant und bewusst',17],['Emotional, aber gesteuert',13],['Ich esse gar keine Schokolade',3],[DK,1]]},
+ {cat:'Qualifizierungsfrage 3',t:'Deine Lieblingsform',q:'Welche Form von Schokolade mögen Sie am liebsten?',
+  a:[['Tafel',53],['Riegel',21],['Pralinen',16],['Brotaufstrich',4],['Schokodrink',3],['Andere',1],[DK,2]]},
+ {cat:'Weitergehende Frage 1',t:'Deine Schoko-Kompetenz',q:'Wenn Sie eine Auszeichnung für „Schokoladenkompetenz“ erhalten würden – wofür am ehesten?',
+  a:[['Für den feinsten Gaumen',28],['Für unübertroffene Begeisterung',20],['Für übermenschliche Selbstkontrolle',16],['Für die besten Vorratsverstecke',12],['Für kreative Resteverwertung',12],[DK,12]]},
+ {cat:'Weitergehende Frage 2',t:'Deine exotische Schoko-Kombi',q:'Welche dieser ungewöhnlichen Kombinationen würden Sie gerne probieren?',
+  a:[['Schokolade mit Lakritze',17],['Schokolade mit Algen',8],['Schokolade mit Blauschimmelkäse',7],['Schokolade mit Sushi',3],['Etwas anderes',4],['Keine, ich bevorzuge Schokolade eher „klassisch“',65],[DK,2]]},
+ {cat:'Weitergehende Frage 3',t:'Dein Schoko-Tier',q:'Wenn Schokolade ein Tier wäre, dann am ehesten …',
+  a:[['… eine Katze','genussvolles Essen und Schnurren',38],['… ein Pandabär','schwarz-weiß, süß und entspannt',23],['… ein Chamäleon','optisch anpassungsfähig und für alle Situationen die richtige Antwort parat',14],['… ein Elefant','kraftvoll und stark wie dunkle Schokolade',13],[DK,12]]},
+ {cat:'Weitergehende Frage 4',t:'Dein Schoko-Urlaub',q:'Wenn Schokolade ein Urlaubsort wäre, dann am ehesten …',
+  a:[['… eine Berghütte mit Kaminfeuer',44],['… ein tropisches Inselparadies',22],['… ein kleines Hotel mit Blick auf den Eiffelturm in Paris',14],['… ein Wochenendtrip ins Unbekannte, ein Abenteuer',9],[DK,11]]},
+ {cat:'Schoko-Nerd-Frage 1',t:'Deine Schoko-Natur',q:'Wenn Schokolade einen Aspekt des Wetters oder der Natur ersetzen könnte, was wäre Ihnen am liebsten?',
+  a:[['Schokolava','die aus einem Vulkan austritt und langsam vom Berg herabläuft',29],['Kakaowolken','die Schokoschnee oder Schokoregen erzeugen',22],['Schokoladentau am Morgen','der sich auf den Blättern und Gräsern absetzt und langsam abperlt',17],['Wind aus Schokoflocken','der beim Vorbeiziehen leise knistert',16],[DK,17]]},
+ {cat:'Schoko-Nerd-Frage 2',t:'Dein Schoko-Ritual',q:'Wenn es im Büro ein offizielles „Schoko-Ritual“ gäbe, welches wäre Ihnen am liebsten?',
+  a:[['Der Kaffeepausen-Pralinenspender','Ein Pralinenspender direkt neben der Kaffeemaschine in der Betriebsküche',45],['Die Küchendienst-Schoki','Wer die Spülmaschine freiwillig ausräumt, bekommt einen Schokoriegel seiner Wahl',22],['Das Neustart-Nougat','Wer bei einem technischen Problem NICHT zum Neustart aufgefordert wird, darf sich eine Nougat-Praline holen',12],['Die Buzzword-Buße','Wer zu viele Buzzwords benutzt, zahlt in die Kakao-Kasse und gibt eine heiße Schokolade aus',5],[DK,15]]},
+ {cat:'Schoko-Nerd-Frage 3',t:'Dein Schoko-Blockbuster',q:'Welches Filmgenre trifft Ihre persönliche Beziehung zu Schokolade am besten?',
+  a:[['Romanze','Du schenkst der Schokolade ein Lächeln, sie schenkt dir dafür Liebe auf den ersten Biss',49],['Fantasy','Die Schokolade wird von einem Drachen bewacht und du musst den süßen Schatz aus seiner Höhle klauen',14],['Action-Thriller','Kannst du die Schokolade schnell genug aus der Verpackung befreien, bevor sie schmilzt?',14],['Drama','Liebt dich die Schokolade so sehr wie du sie?',10],[DK,13]]},
+ {cat:'Schoko-Nerd-Frage 4',t:'Deine Schoko-TV-Serie',q:'Wie würde eine TV-Show mit Ihnen und Schokolade heißen?',
+  a:[['„Die Schokoladenjäger – auf Beutezug im Supermarkt“','Ein Warentester im Einsatz',33],['„Einmal Liebe, Zartbitter bitte!“','Eine Romanze voller Leidenschaft, Schokolade und Intrigen',28],['„Die Kakao-Kommune“','Mockumentary über eine Schokoladenmanufaktur, in der ein Kollege verrückter ist als der andere',14],['„Chocosaurus Maximus“','Familien-Comedyserie mit einem Satansbraten und seinen Schoko-Streichen',9],[DK,15]]},
+ {cat:'Schoko-Nerd-Frage 5',t:'Deine Schoko-Olympiade',q:'Wenn es eine Schokoladen-Olympiade gäbe, was wäre Ihre Disziplin?',
+  a:[['Schokokugel-Gewichtheben','Hier kannst du beweisen, wie viele Kilogramm Schokolade du wirklich pressen kannst',33],['Schokowellen-Surfen','Durch die Zähflüssigkeit der Schokolade eine besondere Herausforderung',26],['Schoko-Ninja-Parcours','Die Schoko-Tafel auf dem Kopf balancieren, während du springst, hangelst und rennst',18],[DK,23]]},
+ {cat:'Schoko-Nerd-Frage 6',t:'Dein Schoko-Influencer-Video',q:'Wenn Sie ein Schokoladen-Influencer wären, was wäre Ihr erstes Video?',
+  a:[['„Der ultimative Produkttester“','Ich probiere JEDE Schokoladensorte in meinem Supermarkt',34],['„Versteckstrategien“','Wie ich meine Schokolade vor Mitbewohnern (oder Partnern) schütze',17],['„Der Schokoladen-Detektiv“','Wer hat das letzte Stück gegessen?',16],['„Schoko-Selfie“','100 Versuche bis zum perfekten Bild von mir und meiner Lieblingsschoki',16],[DK,17]]},
+];
+/* one place per question, positions in scene units */
+const P=[
+ {n:'Schoko-Vulkan',x:1003,y:300},{n:'Strandbar',x:395,y:470},{n:'Schoko-Markt',x:1451,y:505},{n:'Pokalbühne',x:1099,y:668},
+ {n:'Segelboot',x:1781,y:868},{n:'Tierwiese',x:704,y:762},{n:'Berghütte',x:533,y:230},{n:'Wetterstation',x:1272,y:138},
+ {n:'Inselcafé',x:1472,y:292},{n:'Freiluftkino',x:1429,y:668},{n:'Hôtel de Paris',x:1685,y:446},{n:'Schoko-Arena',x:768,y:186},{n:'Selfie-Steg',x:335,y:562}];
+const SEA=[[162,1014],[74,860],[184,244],[140,288],[250,1014],[1680,244],[206,222],[1790,266],[382,1036],[1636,1036],[338,1014],[30,838],[1438,1058],[1702,288],
+ [1768,266],[96,288],[74,794],[1878,354],[30,354],[1878,310],[1746,222],[448,1058],[272,200],[52,992],[294,266],[74,926],[1746,200],[1614,970],[1592,1058],[30,420],
+ [1658,244],[1856,332],[316,222],[1504,1058],[1548,1036],[1856,772],[1834,310],[470,1058],[1878,838],[1570,970],[1878,794],[1856,750],[1526,1014],[96,354]];
+
+const view=$('#view'),sizer=$('#sizer'),stage=$('#stage'),world=$('#world');
+let opened=new Set();try{JSON.parse(localStorage.getItem('insel-opened')||'[]').forEach(i=>opened.add(i))}catch(e){}
+
+let S=1,first=true,MOB=false,active=0;
+const mq=matchMedia('(max-width: 760px)');
+/* phone camera: world is translated/scaled inside a fixed viewport */
+const cam={x:0,y:0,k:1};let camSheet=false;
+function clampCam(){const vw=innerWidth/S,vh=innerHeight/S;const extra=(camSheet?vh*.72:150/S);/* allow the sea to extend under the cards / sheet */
+  cam.x=Math.min(0,Math.max(vw-W*cam.k,cam.x));cam.y=Math.min(0,Math.max(vh-H*cam.k-extra,cam.y))}
+function applyCam(anim){clampCam();world.style.transition=anim?'':'none';world.style.transform=`translate(${cam.x}px,${cam.y}px) scale(${cam.k})`}
+function camTo(i,k,fy){const p=P[i];cam.k=k;cam.x=innerWidth/S/2-p.x*k;cam.y=innerHeight/S*fy-p.y*k;applyCam(!reduce)}
+function fit(){const was=MOB;MOB=mq.matches;document.documentElement.classList.toggle('mob',MOB);
+  const vw=innerWidth,vh=innerHeight;S=Math.max(vw/W,vh/H);stage.style.transform=`scale(${S})`;sizer.style.width=W*S+'px';sizer.style.height=H*S+'px';
+  sizer.style.marginTop=Math.min(0,(vh-H*S)/2)+'px';
+  if(MOB){view.scrollLeft=0;if(!was||first)world.style.transformOrigin='0 0';camTo(active,sheetOpen?1.3:1.12,sheetOpen?.17:.42)}
+  else if(was){world.style.transition='';world.style.transform='';world.style.transformOrigin='960px 540px'}
+  if(first&&!MOB){view.scrollLeft=Math.max(0,(W*S-vw)/2)}first=false}
+let drag=null;
+view.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;
+  if(MOB){drag={m:1,x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y};hideHint();return}
+  if(e.pointerType!=='mouse')return;drag={x:e.clientX,l:view.scrollLeft};view.classList.add('drag')});
+addEventListener('pointermove',e=>{if(!drag)return;if(drag.m){cam.x=drag.cx+(e.clientX-drag.x)/S;cam.y=drag.cy+(e.clientY-drag.y)/S;applyCam(false)}else view.scrollLeft=drag.l-(e.clientX-drag.x)});
+addEventListener('pointerup',()=>{drag=null;view.classList.remove('drag')});
+addEventListener('pointercancel',()=>{drag=null});
+/* on phones the camera moves the world; stop the browser from scrolling the viewport when a pin gets focus */
+view.addEventListener('scroll',()=>{if(MOB&&(view.scrollLeft||view.scrollTop)){view.scrollLeft=0;view.scrollTop=0}});
+
+/* island video */
+const iv=$('#iv');
+if(!reduce){iv.addEventListener('playing',()=>iv.classList.add('live'));iv.src=matchMedia('(max-width: 900px)').matches?'assets/island-720.mp4':'assets/island.mp4';iv.play().catch(()=>{})}
+
+/* pins + place bar */
+const pinsEl=$('#pins'),nav=$('#placeNav');const pins=[],chips=[];
+P.forEach((p,i)=>{
+  const b=document.createElement('button');b.type='button';b.className='pin';b.style.left=p.x+'px';b.style.top=p.y+'px';
+  b.innerHTML=`${pad(i+1)}<span class="lab">${p.n}<span class="lt"> · ${Q[i].t}</span></span>`;b.setAttribute('aria-label',`${p.n}: ${Q[i].t} öffnen`);
+  b.onclick=()=>openPlace(i);pinsEl.appendChild(b);pins.push(b);
+  const c=document.createElement('button');c.type='button';c.innerHTML=`<i>${pad(i+1)}</i>${p.n}`;c.onclick=()=>openPlace(i);nav.appendChild(c);chips.push(c);
+});
+/* phone card carousel */
+const cardsEl=$('#cards'),cdots=$('#cdots');const mcards=[];
+P.forEach((p,i)=>{const m=document.createElement('button');m.type='button';m.className='mcard';
+  m.innerHTML=`<span class="th" style="background-position:${-(p.x/2-31)}px ${-(p.y/2-31)}px"></span><small>Ort ${pad(i+1)}</small><strong>${p.n}</strong><em>Frage öffnen</em>`;
+  m.setAttribute('aria-label',`${p.n}: ${Q[i].t}`);m.onclick=()=>{if(i!==active)setActive(i);else openPlace(i)};cardsEl.appendChild(m);mcards.push(m);cdots.appendChild(document.createElement('i'))});
+function setActive(i,fromScroll,noCam){active=i;pins.forEach((p,k)=>p.classList.toggle('on',k===i));mcards.forEach((m,k)=>m.classList.toggle('on',k===i));
+  [...cdots.children].forEach((d,k)=>d.classList.toggle('on',k===i));
+  if(!fromScroll&&MOB){const m=mcards[i];cardsEl.scrollTo({left:m.offsetLeft-(cardsEl.clientWidth-m.offsetWidth)/2,behavior:reduce?'auto':'smooth'})}
+  if(MOB&&!noCam&&!sheetOpen)camTo(i,1.12,.42)}
+let st;cardsEl.addEventListener('scroll',()=>{clearTimeout(st);st=setTimeout(()=>{const c=cardsEl.scrollLeft+cardsEl.clientWidth/2;let best=0,bd=1e9;
+  mcards.forEach((m,k)=>{const d=Math.abs(m.offsetLeft+m.offsetWidth/2-c);if(d<bd){bd=d;best=k}});if(best!==active){setActive(best,true);hideHint()}},90)});
+const mhint=$('#mhint');function hideHint(){mhint.classList.add('gone')}
+function progress(){$('#cnt').textContent=`${opened.size} / 13`;$('#meter').style.width=(opened.size/13*100)+'%';
+  pins.forEach((p,i)=>p.classList.toggle('done',opened.has(i)));chips.forEach((c,i)=>c.classList.toggle('done',opened.has(i)));mcards.forEach((c,i)=>c.classList.toggle('done',opened.has(i)))}
+progress();
+
+/* ---------- gulls ---------- */
+const fx=$('#fx');const gulls=[];
+function launch(g,delay){g.wait=delay;g.dir=Math.random()<.5?1:-1;g.s=.48+Math.random()*.38;g.x=g.dir>0?-220:W+220;g.y0=40+Math.random()*420;
+  g.v=(95+Math.random()*80)*(0.7+g.s);g.ph=Math.random()*6.28;g.t=0;g.glide=0;g.fr=0;g.el.style.opacity=0}
+for(let i=0;i<3;i++){const el=document.createElement('div');el.className='gull';fx.appendChild(el);const g={el};launch(g,i*3.5+Math.random()*2);gulls.push(g)}
+function gullStep(dt){for(const [n,g] of gulls.entries()){
+  if(MOB&&n>0){g.el.style.opacity=0;continue}
+  if(g.wait>0){g.wait-=dt;continue}
+  g.t+=dt;g.x+=g.v*g.dir*dt;
+  if(g.glide>0){g.glide-=dt;g.frame=1}else{g.fr+=dt*9;g.frame=Math.floor(g.fr)%4;if(Math.random()<dt*.35)g.glide=1+Math.random()*1.6}
+  const y=g.y0+Math.sin(g.t*1.3+g.ph)*22+(g.glide>0?g.t*2:0);
+  g.el.style.opacity=1;g.el.style.backgroundPositionX=(-g.frame*170)+'px';
+  g.el.style.transform=`translate3d(${g.x-85*g.s}px,${y}px,0) scale(${g.dir*g.s},${g.s})`;
+  if((g.dir>0&&g.x>W+240)||(g.dir<0&&g.x<-240))launch(g,1.5+Math.random()*5)}}
+
+/* ---------- jumping fish ---------- */
+const fishes=[];let fishWait=1.5,lastSpot=null;
+function spawnFish(){let p;for(let k=0;k<20;k++){p=SEA[Math.random()*SEA.length|0];if(!lastSpot||Math.hypot(p[0]-lastSpot[0],p[1]-lastSpot[1])>420)break}lastSpot=p;
+  const e=new Image();e.src='assets/fish.webp';e.alt='';e.className='fish';fx.appendChild(e);
+  const dir=Math.random()<.5?1:-1;fishes.push({e,x:p[0],y:p[1],dir,t:0,dur:.85+Math.random()*.25,h:40+Math.random()*25,w:34+Math.random()*18,s:.2+Math.random()*.07,splashed:false});ring(p[0]-dir*18,p[1]);}
+function ring(x,y){const r=document.createElement('div');r.className='ring';r.style.left=x+'px';r.style.top=y+'px';fx.appendChild(r);setTimeout(()=>r.remove(),950);
+  for(let k=0;k<5;k++){const d=document.createElement('div');d.className='drop';fx.appendChild(d);const a=-Math.PI/2+(Math.random()-.5)*1.6,v=40+Math.random()*50;let t=0;
+    (function step(){t+=1/60;const dx=Math.cos(a)*v*t,dy=Math.sin(a)*v*t+260*t*t;d.style.transform=`translate(${x+dx}px,${y+dy}px)`;d.style.opacity=1-t*1.8;if(t<.55)requestAnimationFrame(step);else d.remove()})()}}
+function fishStep(dt){fishWait-=dt;if(fishWait<=0){spawnFish();if(Math.random()<.25)setTimeout(spawnFish,400);fishWait=2.4+Math.random()*2.8}
+  for(let i=fishes.length-1;i>=0;i--){const f=fishes[i];f.t+=dt;const k=f.t/f.dur;
+    if(k>=1){if(!f.splashed)ring(f.x+f.dir*f.w/2,f.y);f.e.remove();fishes.splice(i,1);continue}
+    const x=f.x+f.dir*(k-.5)*f.w*2,y=f.y-4*f.h*k*(1-k);const rot=(-35+k*110);
+    f.e.style.opacity=Math.min(1,k*10,(1-k)*10);
+    f.e.style.transform=`translate3d(${x}px,${y}px,0) scale(${f.dir*f.s},${f.s}) rotate(${rot}deg)`}}
+
+/* ---------- question sheet ---------- */
+const sheet=$('#sheet'),card=$('#card');let sheetOpen=false,cur=0,lastFocus=null;
+function render(i){
+  const q=Q[i];cur=i;$('#qChip').textContent=`${pad(i+1)} · ${P[i].n}`;$('#qCat').textContent=q.cat;$('#qT').textContent=q.t;$('#qQ').textContent=q.q;
+  const rows=q.a.map(r=>r.length===3?{l:r[0],d:r[1],p:r[2]}:{l:r[0],d:'',p:r[1]});
+  const max=Math.max(...rows.filter(r=>r.l!==DK).map(r=>r.p)),scale=Math.max(...rows.map(r=>r.p));const top=rows.find(r=>r.p===max&&r.l!==DK);
+  $('#qRows').innerHTML=rows.map(r=>`<div class="row${r===top?' top':''}${r.l===DK?' dk':''}"><div class="t">${r.l}${r.d?`<em>${r.d}</em>`:''}</div>
+    <div class="track"><div class="fill" data-w="${scale?r.p/scale*100:0}"></div></div><div class="p" data-p="${r.p}">0 %</div></div>`).join('');
+  $('#qIns').innerHTML=`<b>${top.p} %</b> entscheiden sich für: ${top.l.replace(/^… /,'')}${top.d?' – '+top.d:''}.`;
+  $('#qReel').innerHTML=q.reel?`<video src="${q.reel}" controls playsinline preload="metadata"></video>`:
+    `<div class="ph"><div class="play" aria-hidden="true"></div><strong>${q.t}</strong><span>Nina Nougat und Paul Praline berichten live von der Insel.<br>Reel folgt.</span></div><div class="ticker">FANTASTISCHE NEWS +++ ${P[i].n.toUpperCase()} +++</div>`;
+  $('#prev').textContent=`◀ ${P[(i+12)%13].n}`;$('#next').textContent=`${P[(i+1)%13].n} ▶`;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{card.querySelectorAll('.fill').forEach(f=>f.style.width=f.dataset.w+'%');
+    card.querySelectorAll('.p').forEach(p=>{const to=+p.dataset.p;if(reduce){p.textContent=to+' %';return}const t0=performance.now();
+      (function tick(now){const k=Math.min(1,(now-t0)/900);p.textContent=Math.round(to*(1-Math.pow(1-k,3)))+' %';if(k<1)requestAnimationFrame(tick)})(t0)})}));
+  if(!opened.has(i)){opened.add(i);try{localStorage.setItem('insel-opened',JSON.stringify([...opened]))}catch(e){}progress()}
+  setActive(i,false,true);
+}
+function zoomTo(i){if(MOB){camSheet=true;camTo(i,1.3,.17);return}const p=P[i];world.style.transformOrigin=`${p.x}px ${p.y}px`;world.style.transform='scale(1.55)';
+  const target=p.x*S-innerWidth/2;if(W*S>innerWidth)view.scrollTo({left:Math.max(0,Math.min(W*S-innerWidth,target)),behavior:reduce?'auto':'smooth'})}
+function openPlace(i){if(sheetOpen){clearFills();render(i);zoomTo(i);return}
+  lastFocus=pins[i];zoomTo(i);
+  setTimeout(()=>{render(i);sheetOpen=true;sheet.classList.add('on');sheet.setAttribute('aria-hidden','false');$('#close').focus()},reduce?0:650)}
+function clearFills(){card.querySelectorAll('.fill').forEach(f=>f.style.width=0)}
+function closeSheet(){if(!sheetOpen)return;sheetOpen=false;sheet.classList.remove('on');sheet.setAttribute('aria-hidden','true');clearFills();
+  camSheet=false;if(MOB){camTo(cur,1.12,.42);setActive(cur,false,true)}else world.style.transform='';
+  if(lastFocus)lastFocus.focus({preventScroll:true})}
+/* sheet gestures on phones: swipe sideways = next/previous place, pull down = close */
+let sg=null;
+card.addEventListener('touchstart',e=>{if(!MOB)return;const t=e.touches[0];sg={x:t.clientX,y:t.clientY,top:card.scrollTop}},{passive:true});
+card.addEventListener('touchend',e=>{if(!sg)return;const t=e.changedTouches[0],dx=t.clientX-sg.x,dy=t.clientY-sg.y;
+  if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*1.4)(dx<0?$('#next'):$('#prev')).click();else if(dy>90&&sg.top<=0&&card.scrollTop<=0)closeSheet();sg=null},{passive:true});
+$('#close').onclick=closeSheet;sheet.addEventListener('click',e=>{if(e.target===sheet)closeSheet()});
+$('#prev').onclick=()=>{clearFills();const i=(cur+12)%13;render(i);zoomTo(i);lastFocus=pins[i]};
+$('#next').onclick=()=>{clearFills();const i=(cur+1)%13;render(i);zoomTo(i);lastFocus=pins[i]};
+addEventListener('keydown',e=>{if(!sheetOpen)return;if(e.key==='Escape')closeSheet();if(e.key==='ArrowRight')$('#next').click();if(e.key==='ArrowLeft')$('#prev').click()});
+
+/* intro */
+function showIntro(){const it=$('#intro');it.hidden=false;it.classList.remove('gone');$('#enter').focus()}
+$('#enter').onclick=()=>{const it=$('#intro');it.classList.add('gone');setTimeout(()=>it.hidden=true,450);
+  if(MOB){mhint.classList.remove('gone');setTimeout(hideHint,7000)}};
+$('#sign').onclick=showIntro;
+addEventListener('resize',fit);fit();setActive(0,false,true);
+
+/* loop */
+let last=performance.now();
+function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(!reduce){gullStep(dt);fishStep(dt)}for(const f of fishes){}requestAnimationFrame(frame)}
+
+/* preloader */
+const SRC=['assets/island-poster.webp','assets/gull.webp','assets/fish.webp'];let done=0;const segs=[...document.querySelectorAll('#lbar i')];const t0=performance.now();
+function tick(){done++;const p=done/SRC.length;$('#lpct').textContent=Math.round(p*100)+' %';segs.forEach((s,i)=>s.classList.toggle('on',i<Math.round(p*8)))}
+Promise.all(SRC.map(s=>new Promise(r=>{const i=new Image();i.onload=i.onerror=()=>{tick();r()};i.src=s}))).then(()=>{
+  setTimeout(()=>{$('#loader').classList.add('gone');requestAnimationFrame(frame);if(opened.size===0)showIntro()},Math.max(0,1200-(performance.now()-t0)))});
+})();
+</script>
+
+</body></html>
