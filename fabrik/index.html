@@ -55,7 +55,15 @@ button{font:inherit;color:inherit}
 .box .art{position:absolute;inset:0;transition:transform .25s cubic-bezier(.3,1.6,.5,1),filter .25s}
 .box img{width:100%;height:100%;max-width:none;display:block;filter:drop-shadow(0 14px 10px rgba(60,30,10,.35))}
 .box:hover .art,.box:focus-visible .art{transform:translateY(-16px);filter:drop-shadow(0 0 22px rgba(255,214,120,.95))}
-.stk{position:absolute;left:50%;width:auto!important;height:auto!important;max-width:60%;max-height:62%;transform:translate(-50%,-50%) rotate(var(--r));filter:drop-shadow(0 3px 2px rgba(60,30,10,.35))!important;pointer-events:none}
+.lbl{position:absolute;left:50%;display:grid;place-items:center;transform:translate(-50%,-50%) rotate(var(--r));background:var(--lb);
+  box-shadow:0 2px 0 rgba(0,0,0,.06),0 4px 6px rgba(60,30,10,.28),inset 0 0 0 3px rgba(255,255,255,.35),inset 0 -6px 10px rgba(120,80,40,.12);pointer-events:none}
+.lbl::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(135deg,rgba(255,255,255,.35),transparent 40%,transparent 70%,rgba(120,70,30,.08));pointer-events:none}
+.lbl.sq{border-radius:14px}.lbl.rd{border-radius:50%}.lbl.tag{border-radius:10px 40px 10px 40px}.lbl.pill{border-radius:46px}
+.lbl.tape::before{content:"";position:absolute;top:-10px;left:50%;width:44%;height:20px;transform:translateX(-50%) rotate(-4deg);background:rgba(245,232,200,.75);box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.lbl.frm{outline:2px dashed rgba(140,90,50,.35);outline-offset:-9px}
+.lbl img{width:78%;height:78%;object-fit:contain;filter:none!important}
+.engr{position:absolute;font:700 30px/1 var(--display);letter-spacing:2px;color:rgba(78,40,16,.62);mix-blend-mode:multiply;
+  text-shadow:0 1.5px 0 rgba(255,236,200,.55),0 -1px 0 rgba(40,18,6,.35);pointer-events:none}
 .plaque{position:absolute;left:50%;transform:translate(-50%,-50%);display:flex;align-items:baseline;gap:8px;white-space:nowrap;padding:5px 16px 7px;border-radius:14px;
   background:var(--pc);color:var(--pf);text-align:center;box-shadow:inset 0 -5px 0 rgba(0,0,0,.14),0 3px 0 rgba(0,0,0,.12);
   clip-path:polygon(7% 0,93% 0,100% 14%,100% 86%,93% 100%,7% 100%,0 86%,0 14%)}
@@ -379,12 +387,19 @@ function beanStep(dt){for(let i=beans.length-1;i>=0;i--){const b=beans[i];b.vy+=
 
 /* ---------- crates on the conveyor ---------- */
 const beltL=$('#belt');const boxes=[];
+/* paper label per crate: shape, paper colour, tilt and size vary */
+const LB=['#fbf4e4','#f3e0bb','#fde7df','#e8efe0','#fff8ea','#efe2cc','#e6eef3'];
+const SH=['sq','rd','tag','pill','sq','rd'];
+function label(i,wood){const r=((i*37)%11-5)*1.4,sh=SH[(i*5)%SH.length],sz=wood?40:42,w=sh==='pill'?sz*1.25:sz,tape=i%4===1?' tape':'';
+  const frm=i%3===2?' frm':'';const top=wood?52:56,dx=((i*13)%7-3)*1.2;
+  return `<span class="lbl ${sh}${tape}${frm}" style="--r:${r.toFixed(1)}deg;--lb:${LB[(i*3)%LB.length]};width:${w}%;aspect-ratio:${sh==='pill'?'1.25/1':'1/1'};top:${top}%;left:${50+dx}%"><img src="assets/st${pad(i+1)}.webp" alt="" draggable="false"></span>`}
+function engr(i,wood){const top=wood?(i%4===1):(i%4!==0);return top?`left:${wood?18:12}%;top:${wood?25:23}%`:`left:${wood?18:12}%;bottom:${wood?6:9}%`}
 Q.forEach((q,i)=>{
   const wood=i%2===1;const w=wood?282:320,h=wood?273:256;const [ln,pc,pf]=LAB[i];
   const b=document.createElement('button');b.type='button';b.className='box';b.style.width=w+'px';b.style.height=h+'px';
   b.setAttribute('aria-label',`Kiste ${pad(i+1)} öffnen: ${q.t}`);
   b.innerHTML=`<span class="tip">${pad(i+1)} · ${q.t}</span><span class="art"><img src="assets/${wood?'box-wood':'box-card'}.webp" alt="" draggable="false">
-   <img class="stk" src="assets/st${pad(i+1)}.webp" alt="" draggable="false" style="--r:${[-6,5,-3,7,-5,4][i%6]}deg;top:${wood?47:52}%"><span class="plaque" style="--pc:${pc};--pf:${pf};top:${wood?85:86}%"><b>${pad(i+1)}</b><span>${ln}</span></span><span class="done" aria-hidden="true">✓</span></span>`;
+   ${label(i,wood)}<span class="engr" style="${engr(i,wood)}">${pad(i+1)}</span><span class="done" aria-hidden="true">✓</span></span>`;
   b.addEventListener('pointerenter',()=>hover=i);b.addEventListener('pointerleave',()=>{if(hover===i)hover=-1});
   b.addEventListener('focus',()=>hover=i);b.addEventListener('blur',()=>{if(hover===i)hover=-1});
   b.addEventListener('click',()=>openBox(i));
