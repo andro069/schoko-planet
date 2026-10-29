@@ -55,11 +55,12 @@ button{font:inherit;color:inherit}
 .box .art{position:absolute;inset:0;transition:transform .25s cubic-bezier(.3,1.6,.5,1),filter .25s}
 .box img{width:100%;height:100%;max-width:none;display:block;filter:drop-shadow(0 14px 10px rgba(60,30,10,.35))}
 .box:hover .art,.box:focus-visible .art{transform:translateY(-16px);filter:drop-shadow(0 0 22px rgba(255,214,120,.95))}
-.plaque{position:absolute;left:50%;transform:translate(-50%,-50%);width:66%;padding:12px 10px 14px;border-radius:22px;
+.stk{position:absolute;left:50%;width:auto!important;height:auto!important;max-width:60%;max-height:62%;transform:translate(-50%,-50%) rotate(var(--r));filter:drop-shadow(0 3px 2px rgba(60,30,10,.35))!important;pointer-events:none}
+.plaque{position:absolute;left:50%;transform:translate(-50%,-50%);display:flex;align-items:baseline;gap:8px;white-space:nowrap;padding:5px 16px 7px;border-radius:14px;
   background:var(--pc);color:var(--pf);text-align:center;box-shadow:inset 0 -5px 0 rgba(0,0,0,.14),0 3px 0 rgba(0,0,0,.12);
   clip-path:polygon(7% 0,93% 0,100% 14%,100% 86%,93% 100%,7% 100%,0 86%,0 14%)}
-.plaque b{display:block;font-family:var(--display);font-weight:700;font-size:56px;line-height:1;letter-spacing:1px}
-.plaque span{display:block;font-family:var(--display);font-weight:600;font-size:24px;line-height:1.1;margin-top:4px}
+.plaque b{display:block;font-family:var(--display);font-weight:700;font-size:34px;line-height:1;letter-spacing:1px}
+.plaque span{display:block;font-family:var(--display);font-weight:600;font-size:20px;line-height:1.1}
 .box .tip{position:absolute;left:50%;bottom:100%;transform:translate(-50%,-6px) scale(.9);opacity:0;white-space:nowrap;
   background:var(--choc);color:var(--paper);font-family:var(--display);font-weight:600;font-size:27px;padding:10px 20px;border-radius:999px;
   transition:.2s;pointer-events:none;box-shadow:0 8px 20px rgba(40,20,10,.35)}
@@ -383,7 +384,7 @@ Q.forEach((q,i)=>{
   const b=document.createElement('button');b.type='button';b.className='box';b.style.width=w+'px';b.style.height=h+'px';
   b.setAttribute('aria-label',`Kiste ${pad(i+1)} öffnen: ${q.t}`);
   b.innerHTML=`<span class="tip">${pad(i+1)} · ${q.t}</span><span class="art"><img src="assets/${wood?'box-wood':'box-card'}.webp" alt="" draggable="false">
-   <span class="plaque" style="--pc:${pc};--pf:${pf};top:${wood?54:58}%"><b>${pad(i+1)}</b><span>${ln}</span></span><span class="done" aria-hidden="true">✓</span></span>`;
+   <img class="stk" src="assets/st${pad(i+1)}.webp" alt="" draggable="false" style="--r:${[-6,5,-3,7,-5,4][i%6]}deg;top:${wood?47:52}%"><span class="plaque" style="--pc:${pc};--pf:${pf};top:${wood?85:86}%"><b>${pad(i+1)}</b><span>${ln}</span></span><span class="done" aria-hidden="true">✓</span></span>`;
   b.addEventListener('pointerenter',()=>hover=i);b.addEventListener('pointerleave',()=>{if(hover===i)hover=-1});
   b.addEventListener('focus',()=>hover=i);b.addEventListener('blur',()=>{if(hover===i)hover=-1});
   b.addEventListener('click',()=>openBox(i));
@@ -452,7 +453,7 @@ function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;
 if(reduce){steamAcc=40;steamStep(1.2,0)}
 
 /* ---------- preloader ---------- */
-const SRC=['assets/bg.webp','assets/window-poster.webp','assets/bucket-top.webp','assets/bucket-body-full.webp','assets/bucket-body-empty.webp','assets/box-card.webp','assets/box-wood.webp',...BEAN_SRC];
+const SRC=['assets/bg.webp','assets/window-poster.webp','assets/bucket-top.webp','assets/bucket-body-full.webp','assets/bucket-body-empty.webp','assets/box-card.webp','assets/box-wood.webp',...Array.from({length:13},(_,i)=>`assets/st${pad(i+1)}.webp`),...BEAN_SRC];
 let done=0;const segs=[...document.querySelectorAll('#lbar i')];const t0=performance.now();
 function tickLoad(){done++;const p=done/SRC.length;$('#lpct').textContent=Math.round(p*100)+' %';segs.forEach((s,i)=>s.classList.toggle('on',i<Math.round(p*8)))}
 Promise.all(SRC.map(s=>new Promise(r=>{const i=new Image();i.onload=i.onerror=()=>{tickLoad();r()};i.src=s}))).then(()=>{
